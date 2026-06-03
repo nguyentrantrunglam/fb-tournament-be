@@ -13,6 +13,8 @@ import { TournamentsModule } from './modules/tournaments/tournaments.module';
 import { CategoriesModule } from './modules/categories/categories.module';
 import { CourtsModule } from './modules/courts/courts.module';
 import { StorageModule } from './modules/storage/storage.module';
+import { FeesModule } from './modules/fees/fees.module';
+import { RefereesModule } from './modules/referees/referees.module';
 
 @Module({
   imports: [
@@ -32,6 +34,8 @@ import { StorageModule } from './modules/storage/storage.module';
     CategoriesModule,
     CourtsModule,
     StorageModule,
+    FeesModule,
+    RefereesModule,
   ],
   providers: [
     // Rate limit everything.
