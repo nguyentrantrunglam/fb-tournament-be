@@ -1,0 +1,37 @@
+# Dev stack for badminton-api: MongoDB single-node replica set (required for multi-doc
+# transactions) + the API. The mongo healthcheck self-initiates the replica set.
+services:
+  mongo:
+    image: mongo:7
+    command: ['--replSet', 'rs0', '--bind_ip_all']
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      # Initiate RS once, then report healthy when PRIMARY is elected.
+      test: >
+        mongosh --quiet --eval "
+          try { rs.status().ok }
+          catch (e) { rs.initiate({_id:'rs0',members:[{_id:0,host:'localhost:27017'}]}) }
+        "
+      interval: 5s
+      timeout: 30s
+      retries: 30
+      start_period: 5s
+
+  api:
+    build: .
+    env_file: .env
+    environment:
+      # Override host for in-network access; directConnection lets us talk to the
+      # single-node RS without resolving the advertised member host.
+      MONGO_URI: mongodb://mongo:27017/badminton?replicaSet=rs0&directConnection=true
+    ports:
+      - '3001:3001'
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+volumes:
+  mongo_data:
