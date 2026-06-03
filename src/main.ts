@@ -55,7 +55,7 @@ async function bootstrap() {
   app.use(passportSession);
 
   app.enableCors({ origin: webOrigin, credentials: true });
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
+  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
   app.useGlobalFilters(new DomainExceptionFilter());
 

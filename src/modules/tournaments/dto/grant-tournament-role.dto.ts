@@ -1,8 +1,8 @@
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsMongoId } from 'class-validator';
 import type { TournamentRoleValue } from '../../../schemas/tournament-role.schema';
 
 export class GrantTournamentRoleDto {
-  @IsString()
+  @IsMongoId()
   userId!: string;
 
   @IsEnum(['organizer', 'referee'])

@@ -32,6 +32,15 @@ export class DomainExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    if (this.isCastError(exception)) {
+      res.status(HttpStatus.BAD_REQUEST).json({
+        statusCode: HttpStatus.BAD_REQUEST,
+        code: 'INVALID_ID',
+        message: 'Mã không hợp lệ.',
+      });
+      return;
+    }
+
     if (this.isDuplicateKey(exception)) {
       const code = this.duplicateCode(exception);
       res.status(HttpStatus.CONFLICT).json({
@@ -57,6 +66,13 @@ export class DomainExceptionFilter implements ExceptionFilter {
       code: 'INTERNAL_ERROR',
       message: 'Đã có lỗi xảy ra.',
     });
+  }
+
+  /** Mongoose CastError: malformed :id param (e.g. "not-an-id" where ObjectId expected). */
+  private isCastError(e: unknown): boolean {
+    if (typeof e !== 'object' || e === null) return false;
+    const err = e as Record<string, unknown>;
+    return err['name'] === 'CastError' && (err['kind'] !== undefined || err['path'] !== undefined);
   }
 
   private isDuplicateKey(e: unknown): e is { code: number; keyPattern?: Record<string, unknown> } {

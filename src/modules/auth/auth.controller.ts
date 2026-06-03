@@ -9,6 +9,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { Public } from '../../common/decorators/public.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -37,6 +38,8 @@ function promisifyLogout(req: Request): Promise<void> {
   });
 }
 
+/** Auth routes are brute-force sensitive — tighten to 5 req/min (global is 100/min). */
+@Throttle({ default: { limit: 5, ttl: 60_000 } })
 @Controller('auth')
 export class AuthController {
   constructor(

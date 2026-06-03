@@ -10,6 +10,7 @@ import {
   TournamentRole,
   type TournamentRoleDocument,
 } from '../../schemas/tournament-role.schema';
+import { User, type UserDocument } from '../../schemas/user.schema';
 import { DomainError } from '../../common/domain-error';
 import type { CreateTournamentDto } from './dto/create-tournament.dto';
 import type { UpdateTournamentDto } from './dto/update-tournament.dto';
@@ -78,6 +79,8 @@ export class TournamentsService {
     private readonly tournamentModel: Model<TournamentDocument>,
     @InjectModel(TournamentRole.name)
     private readonly roleModel: Model<TournamentRoleDocument>,
+    @InjectModel(User.name)
+    private readonly userModel: Model<UserDocument>,
   ) {}
 
   /**
@@ -255,10 +258,18 @@ export class TournamentsService {
   /**
    * Grant a user a role on this tournament. E11000 from the compound unique index
    * is caught by DomainExceptionFilter → TOURNAMENT_ROLE_ALREADY_GRANTED.
+   *
+   * H2: verifies the target user exists before inserting the role doc to prevent orphan grants.
    */
   async grantRole(tid: string, dto: GrantTournamentRoleDto, grantedBy: string) {
     const tournament = await this.tournamentModel.findById(tid).lean().exec();
     if (!tournament) throw new NotFoundException('Giải đấu không tồn tại.');
+
+    // H2 — prevent orphan role grants for non-existent users.
+    const targetUserExists = await this.userModel.exists({ _id: dto.userId });
+    if (!targetUserExists) {
+      throw new DomainError('USER_NOT_FOUND', 'Người dùng không tồn tại.', 404);
+    }
 
     await this.roleModel.create({
       tournamentId: tid,
