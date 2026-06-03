@@ -7,6 +7,7 @@ import {
   IsEnum,
   MaxLength,
   IsUrl,
+  Matches,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -62,6 +63,16 @@ export class UpdateTournamentDto {
   @IsString()
   @MaxLength(200)
   name?: string;
+
+  // Slug is user-editable (UI: "tự sinh, có thể sửa"). Uniqueness enforced by the
+  // unique index → E11000 mapped to SLUG_ALREADY_USED by DomainExceptionFilter.
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
+    message: 'Slug chỉ gồm chữ thường, số và dấu gạch ngang.',
+  })
+  slug?: string;
 
   @IsOptional()
   @IsString()

@@ -204,6 +204,12 @@ export class TournamentsService {
         throw new DomainError('INVALID_NAME', 'Tên giải tối thiểu 3 ký tự.');
       patch['name'] = name;
     }
+    if (dto.slug !== undefined) {
+      const slug = dto.slug.trim().toLowerCase();
+      if (slug.length < 3) throw new DomainError('INVALID_SLUG', 'Slug tối thiểu 3 ký tự.');
+      // Duplicate slug → unique-index E11000 → SLUG_ALREADY_USED (DomainExceptionFilter).
+      patch['slug'] = slug;
+    }
     if (dto.description !== undefined) patch['description'] = dto.description.slice(0, 1000);
     if (dto.startDate !== undefined) patch['startDate'] = dto.startDate;
     if (dto.endDate !== undefined) patch['endDate'] = dto.endDate;
