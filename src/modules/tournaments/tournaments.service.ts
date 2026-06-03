@@ -59,8 +59,24 @@ function safeTournament(doc: TournamentDocument) {
     bannerUrl: doc.bannerUrl ?? null,
     logoUrl: doc.logoUrl ?? null,
     rulesText: doc.rulesText ?? null,
-    sponsors: doc.sponsors,
-    paymentConfig: doc.paymentConfig ?? null,
+    // Map sub-documents to plain objects (never leak Mongoose docs to the response).
+    sponsors: (doc.sponsors ?? []).map((s) => ({
+      id: s.id,
+      tier: s.tier,
+      name: s.name,
+      logoUrl: s.logoUrl ?? null,
+      link: s.link ?? null,
+      description: s.description ?? null,
+    })),
+    paymentConfig: doc.paymentConfig
+      ? {
+          accountHolder: doc.paymentConfig.accountHolder,
+          accountNumber: doc.paymentConfig.accountNumber,
+          bankCode: doc.paymentConfig.bankCode,
+          transferMemoTemplate: doc.paymentConfig.transferMemoTemplate,
+          qrUrl: doc.paymentConfig.qrUrl ?? null,
+        }
+      : null,
     isPublic: doc.isPublic,
     ownerUserId: doc.ownerUserId,
     status: doc.status,

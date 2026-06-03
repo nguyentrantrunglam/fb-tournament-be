@@ -1,5 +1,5 @@
-import { NestFactory, Reflector } from '@nestjs/core';
-import { ValidationPipe, ClassSerializerInterceptor, Logger } from '@nestjs/common';
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import session from 'express-session';
@@ -56,7 +56,9 @@ async function bootstrap() {
 
   app.enableCors({ origin: webOrigin, credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
-  app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+  // NOTE: no global ClassSerializerInterceptor — nothing uses @Exclude/@Expose (PII is
+  // controlled by sanitizeUser), and class-transformer recurses infinitely on Mongoose
+  // sub-documents (sponsors/paymentConfig). Express res.json handles plain objects fine.
   app.useGlobalFilters(new DomainExceptionFilter());
 
   // Same middleware references on Socket.IO so connect.sid authenticates sockets too.
