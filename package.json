@@ -17,7 +17,10 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "seed:admin": "node scripts/seed-admin.mjs",
+    "seed:users": "node scripts/seed-users.mjs",
+    "seed": "node scripts/seed-admin.mjs && node scripts/seed-users.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1059.0",
