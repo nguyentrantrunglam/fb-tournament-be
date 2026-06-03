@@ -7,6 +7,12 @@ import configuration, { type AppConfig } from './config/configuration';
 import { AuthenticatedGuard } from './common/guards/authenticated.guard';
 import { HealthModule } from './modules/health/health.module';
 import { RealtimeModule } from './modules/realtime/realtime.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { TournamentsModule } from './modules/tournaments/tournaments.module';
+import { CategoriesModule } from './modules/categories/categories.module';
+import { CourtsModule } from './modules/courts/courts.module';
+import { StorageModule } from './modules/storage/storage.module';
 
 @Module({
   imports: [
@@ -20,6 +26,12 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     HealthModule,
     RealtimeModule,
+    AuthModule,
+    UsersModule,
+    TournamentsModule,
+    CategoriesModule,
+    CourtsModule,
+    StorageModule,
   ],
   providers: [
     // Rate limit everything.

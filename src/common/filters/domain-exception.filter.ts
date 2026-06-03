@@ -64,10 +64,16 @@ export class DomainExceptionFilter implements ExceptionFilter {
   }
 
   private duplicateCode(e: { keyPattern?: Record<string, unknown> }): string {
-    const key = e.keyPattern ? Object.keys(e.keyPattern)[0] : undefined;
+    const keys = e.keyPattern ? Object.keys(e.keyPattern) : [];
+    const key = keys[0];
     if (key === 'email') return 'EMAIL_ALREADY_USED';
     if (key && key.includes('nationalId')) return 'NATIONAL_ID_ALREADY_REGISTERED';
     if (key === 'slug') return 'SLUG_ALREADY_USED';
+    // Compound index {tournamentId, code} on categories collection.
+    if (keys.includes('code') && keys.includes('tournamentId')) return 'CATEGORY_CODE_DUPLICATE';
+    // Compound index {tournamentId, userId, role} on tournamentRoles collection.
+    if (keys.includes('role') && keys.includes('userId') && keys.includes('tournamentId'))
+      return 'TOURNAMENT_ROLE_ALREADY_GRANTED';
     return 'DUPLICATE_KEY';
   }
 }
