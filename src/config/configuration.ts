@@ -18,6 +18,8 @@ export interface AppConfig {
     key: string;
     secret: string;
     bucket: string;
+    forcePathStyle: boolean; // true for MinIO (path-style); false for DigitalOcean Spaces (virtual-hosted)
+    publicBaseUrl: string; // base URL objects are served from (MinIO: http://localhost:9000/{bucket})
   };
   smtp: {
     host: string;
@@ -46,6 +48,8 @@ export default (): AppConfig => ({
     key: process.env.SPACES_KEY ?? '',
     secret: process.env.SPACES_SECRET ?? '',
     bucket: process.env.SPACES_BUCKET ?? '',
+    forcePathStyle: process.env.SPACES_FORCE_PATH_STYLE === 'true',
+    publicBaseUrl: process.env.SPACES_PUBLIC_BASE_URL ?? '',
   },
   smtp: {
     host: process.env.SMTP_HOST ?? '',

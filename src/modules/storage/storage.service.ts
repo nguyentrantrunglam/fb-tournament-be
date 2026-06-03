@@ -26,7 +26,7 @@ const PRESIGN_TTL_SECONDS = 300; // 5 minutes
 export class StorageService {
   private client: S3Client | null = null;
   private bucket = '';
-  private endpoint = '';
+  private publicBaseUrl = '';
 
   constructor(
     private readonly config: ConfigService<AppConfig, true>,
@@ -40,10 +40,12 @@ export class StorageService {
         endpoint: spaces.endpoint,
         region: spaces.region || 'us-east-1',
         credentials: { accessKeyId: spaces.key, secretAccessKey: spaces.secret },
-        forcePathStyle: false, // Spaces uses virtual-hosted-style URLs.
+        // MinIO (dev) needs path-style; DigitalOcean Spaces (prod) uses virtual-hosted.
+        forcePathStyle: spaces.forcePathStyle,
       });
       this.bucket = spaces.bucket;
-      this.endpoint = spaces.endpoint;
+      // Objects served from publicBaseUrl if set (MinIO), else {endpoint}/{bucket} (Spaces path form).
+      this.publicBaseUrl = spaces.publicBaseUrl || `${spaces.endpoint}/${spaces.bucket}`;
     }
   }
 
@@ -121,8 +123,8 @@ export class StorageService {
       expiresIn: PRESIGN_TTL_SECONDS,
     });
 
-    // Public URL — Spaces serves objects at {endpoint}/{bucket}/{key}.
-    const publicUrl = `${this.endpoint}/${this.bucket}/${dto.key}`;
+    // Public URL — objects served at {publicBaseUrl}/{key}.
+    const publicUrl = `${this.publicBaseUrl}/${dto.key}`;
 
     return { uploadUrl, publicUrl };
   }
