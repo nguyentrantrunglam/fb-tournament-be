@@ -2,6 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Category, type CategoryDocument } from '../../schemas/category.schema';
+import {
+  Registration,
+  type RegistrationDocument,
+} from '../../schemas/registration.schema';
 import { DomainError } from '../../common/domain-error';
 import type { CreateCategoryDto } from './dto/create-category.dto';
 import type { UpdateCategoryDto } from './dto/update-category.dto';
@@ -17,6 +21,8 @@ export class CategoriesService {
   constructor(
     @InjectModel(Category.name)
     private readonly categoryModel: Model<CategoryDocument>,
+    @InjectModel(Registration.name)
+    private readonly registrationModel: Model<RegistrationDocument>,
   ) {}
 
   /**
@@ -80,7 +86,7 @@ export class CategoriesService {
             `Không thể thay đổi "${field}" sau khi đã mở đăng ký.`,
           );
         }
-        patch[field] = dto[field as FrozenField];
+        patch[field] = dto[field];
       }
     }
 
@@ -88,7 +94,8 @@ export class CategoriesService {
     const newPlayerCount =
       (patch['playerCount'] as number | undefined) ?? category.playerCount;
     const newGender =
-      (patch['genderRequirement'] as string | undefined) ?? category.genderRequirement;
+      (patch['genderRequirement'] as string | undefined) ??
+      category.genderRequirement;
     if (newGender === 'mixed_pair' && newPlayerCount !== 2) {
       throw new DomainError(
         'INVALID_CATEGORY_CONFIG',
@@ -144,9 +151,7 @@ export class CategoriesService {
   /**
    * Close registration: open → closed.
    * Guard: pending registrations must be 0 before closing.
-   *
-   * TODO: wire pendingCount against the registrations collection once Phase 4
-   * (registrations module) is built. Currently treats pending = 0 (no registrations exist).
+   * All pending registrations must be approved or rejected before the category can close.
    */
   async closeRegistration(cid: string) {
     const category = await this.categoryModel.findById(cid).exec();
@@ -159,15 +164,14 @@ export class CategoriesService {
       );
     }
 
-    // TODO (Phase 4): count pending registrations for this category and reject if > 0.
-    // const pendingCount = await registrationModel.countDocuments({ categoryId: cid, status: 'pending' });
-    // if (pendingCount > 0) throw new DomainError('PENDING_REGISTRATIONS_EXIST', `Còn ${pendingCount} pending, vui lòng duyệt/từ chối hết.`);
-    const pendingCount = 0; // Placeholder until registrations module exists.
-
+    const pendingCount = await this.registrationModel.countDocuments({
+      categoryId: cid,
+      status: 'pending',
+    });
     if (pendingCount > 0) {
       throw new DomainError(
         'PENDING_REGISTRATIONS_EXIST',
-        `Còn ${pendingCount} pending, vui lòng duyệt/từ chối hết.`,
+        `Còn ${pendingCount} đăng ký chờ duyệt, vui lòng duyệt hoặc từ chối hết trước khi đóng.`,
       );
     }
 
@@ -209,17 +213,21 @@ export class CategoriesService {
 
   /**
    * Delete a category.
-   * Blocked if registrations exist.
-   *
-   * TODO (Phase 4): query registrations collection; currently allows delete (no registrations exist yet).
+   * Blocked if any registrations (of any status) exist for this category.
    */
   async delete(cid: string) {
     const category = await this.categoryModel.findById(cid).exec();
     if (!category) throw new NotFoundException('Hạng mục không tồn tại.');
 
-    // TODO (Phase 4): block deletion if any registration references this category.
-    // const count = await registrationModel.countDocuments({ categoryId: cid });
-    // if (count > 0) throw new DomainError('CATEGORY_HAS_REGISTRATIONS', 'Không thể xóa hạng mục đã có đăng ký.');
+    const regCount = await this.registrationModel.countDocuments({
+      categoryId: cid,
+    });
+    if (regCount > 0) {
+      throw new DomainError(
+        'CATEGORY_HAS_REGISTRATIONS',
+        'Không thể xóa hạng mục đã có đăng ký.',
+      );
+    }
 
     await this.categoryModel.deleteOne({ _id: cid });
     return { ok: true };

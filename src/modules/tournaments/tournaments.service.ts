@@ -5,7 +5,10 @@ import {
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Tournament, type TournamentDocument } from '../../schemas/tournament.schema';
+import {
+  Tournament,
+  type TournamentDocument,
+} from '../../schemas/tournament.schema';
 import {
   TournamentRole,
   type TournamentRoleDocument,
@@ -106,7 +109,10 @@ export class TournamentsService {
    */
   async create(dto: CreateTournamentDto, callerId: string) {
     if (dto.endDate < dto.startDate) {
-      throw new DomainError('INVALID_DATE_RANGE', 'Ngày kết thúc phải sau ngày bắt đầu.');
+      throw new DomainError(
+        'INVALID_DATE_RANGE',
+        'Ngày kết thúc phải sau ngày bắt đầu.',
+      );
     }
 
     const base = slugify(dto.name) || 'giai';
@@ -145,7 +151,11 @@ export class TournamentsService {
    */
   async listMine(callerId: string, globalRole: string) {
     if (globalRole === 'admin') {
-      const all = await this.tournamentModel.find().sort({ createdAt: -1 }).lean().exec();
+      const all = await this.tournamentModel
+        .find()
+        .sort({ createdAt: -1 })
+        .lean()
+        .exec();
       return { tournaments: all.map((t) => this.safeLean(t, callerId)) };
     }
 
@@ -183,8 +193,7 @@ export class TournamentsService {
       }
     }
     merged.sort(
-      (a, b) =>
-        (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0),
+      (a, b) => (b.createdAt?.getTime() ?? 0) - (a.createdAt?.getTime() ?? 0),
     );
 
     return { tournaments: merged.map((t) => this.safeLean(t, callerId)) };
@@ -204,7 +213,8 @@ export class TournamentsService {
         .findOne({ tournamentId: tid, userId: callerId })
         .lean()
         .exec();
-      if (!roleDoc) throw new ForbiddenException('Bạn không có quyền xem giải đấu này.');
+      if (!roleDoc)
+        throw new ForbiddenException('Bạn không có quyền xem giải đấu này.');
     }
 
     return safeTournament(tournament);
@@ -222,11 +232,13 @@ export class TournamentsService {
     }
     if (dto.slug !== undefined) {
       const slug = dto.slug.trim().toLowerCase();
-      if (slug.length < 3) throw new DomainError('INVALID_SLUG', 'Slug tối thiểu 3 ký tự.');
+      if (slug.length < 3)
+        throw new DomainError('INVALID_SLUG', 'Slug tối thiểu 3 ký tự.');
       // Duplicate slug → unique-index E11000 → SLUG_ALREADY_USED (DomainExceptionFilter).
       patch['slug'] = slug;
     }
-    if (dto.description !== undefined) patch['description'] = dto.description.slice(0, 1000);
+    if (dto.description !== undefined)
+      patch['description'] = dto.description.slice(0, 1000);
     if (dto.startDate !== undefined) patch['startDate'] = dto.startDate;
     if (dto.endDate !== undefined) patch['endDate'] = dto.endDate;
 
@@ -234,7 +246,10 @@ export class TournamentsService {
     const start = (patch['startDate'] as string | undefined) ?? undefined;
     const end = (patch['endDate'] as string | undefined) ?? undefined;
     if (start && end && end < start) {
-      throw new DomainError('INVALID_DATE_RANGE', 'Ngày kết thúc phải sau ngày bắt đầu.');
+      throw new DomainError(
+        'INVALID_DATE_RANGE',
+        'Ngày kết thúc phải sau ngày bắt đầu.',
+      );
     }
 
     if (dto.location !== undefined) patch['location'] = dto.location.trim();
@@ -271,7 +286,11 @@ export class TournamentsService {
   /** Toggle isPublic visibility. */
   async setVisibility(tid: string, dto: TournamentVisibilityDto) {
     const updated = await this.tournamentModel
-      .findByIdAndUpdate(tid, { $set: { isPublic: dto.isPublic } }, { returnDocument: 'after' })
+      .findByIdAndUpdate(
+        tid,
+        { $set: { isPublic: dto.isPublic } },
+        { returnDocument: 'after' },
+      )
       .exec();
     if (!updated) throw new NotFoundException('Giải đấu không tồn tại.');
     return { id: updated._id.toHexString(), isPublic: updated.isPublic };

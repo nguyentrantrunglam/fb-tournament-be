@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Param, Patch, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  UseGuards,
+} from '@nestjs/common';
 import { FeesService } from './fees.service';
 import { PatchFeesDto } from './dto/patch-fees.dto';
 import { TournamentRoles } from '../../common/decorators/tournament-roles.decorator';

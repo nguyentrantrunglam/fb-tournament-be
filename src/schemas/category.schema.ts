@@ -2,7 +2,11 @@ import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
 import { HydratedDocument, Types } from 'mongoose';
 
 export type CategoryRegistrationStatus = 'not_open' | 'open' | 'closed';
-export type GenderRequirement = 'men_only' | 'women_only' | 'mixed_pair' | 'unrestricted';
+export type GenderRequirement =
+  | 'men_only'
+  | 'women_only'
+  | 'mixed_pair'
+  | 'unrestricted';
 export type CategoryFormat = 'single_elim' | 'round_robin' | 'group_ko';
 
 /**
@@ -13,7 +17,10 @@ export type CategoryFormat = 'single_elim' | 'round_robin' | 'group_ko';
  * Field freeze rule: code, playerCount, genderRequirement become immutable once
  * registrationStatus transitions to 'open' (enforced at service layer, not schema).
  */
-@Schema({ collection: 'categories', timestamps: { createdAt: true, updatedAt: false } })
+@Schema({
+  collection: 'categories',
+  timestamps: { createdAt: true, updatedAt: false },
+})
 export class Category {
   _id!: Types.ObjectId;
 
@@ -67,6 +74,16 @@ export class Category {
   /** Maximum teams/pairs allowed. Clamped to [2, 256] at service layer. */
   @Prop({ required: true, min: 2, max: 256 })
   maxTeams!: number;
+
+  /**
+   * Atomic slot counter: incremented when a registration enters pending/approved,
+   * decremented when it transitions out (withdrawn, rejected). The counter is the
+   * serialization point that prevents concurrent registrations from oversubscribing
+   * maxTeams — only a findOneAndUpdate with { slotsUsed < maxTeams } can claim a slot.
+   * Default 0; min:0 prevents underflow. Existing categories treat missing as 0 via $inc.
+   */
+  @Prop({ required: true, default: 0, min: 0 })
+  slotsUsed!: number;
 
   /** Optional start time for scheduling this category's matches. */
   @Prop()

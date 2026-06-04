@@ -92,14 +92,20 @@ describe('Auth & Users (e2e)', () => {
     app.use(passportInit);
     app.use(passportSession);
 
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
+    app.useGlobalInterceptors(
+      new ClassSerializerInterceptor(app.get(Reflector)),
+    );
     app.useGlobalFilters(new DomainExceptionFilter());
 
     await app.init();
 
     // Ensure unique indexes are built before any duplicate-key tests run.
-    userModel = moduleFixture.get<Model<UserDocument>>(getModelToken(User.name));
+    userModel = moduleFixture.get<Model<UserDocument>>(
+      getModelToken(User.name),
+    );
     await userModel.syncIndexes();
 
     agent = request.agent(app.getHttpServer());
@@ -203,7 +209,10 @@ describe('Auth & Users (e2e)', () => {
 
       expect(res.body.displayName).toBe('Alice Updated');
       // nationalId change must not appear (whitelist stripped the field).
-      const dbUser = await userModel.findOne({ email: BASE_REG.email }).lean().exec();
+      const dbUser = await userModel
+        .findOne({ email: BASE_REG.email })
+        .lean()
+        .exec();
       expect(dbUser?.identity?.nationalId).toBe(BASE_REG.nationalId);
     });
   });
@@ -256,17 +265,25 @@ describe('Auth & Users (e2e)', () => {
     });
 
     it('200 — admin GET /admin/users/:id includes identity', async () => {
-      const alice = await userModel.findOne({ email: BASE_REG.email }).lean().exec();
+      const alice = await userModel
+        .findOne({ email: BASE_REG.email })
+        .lean()
+        .exec();
       expect(alice).not.toBeNull();
 
-      const res = await adminAgent.get(`/admin/users/${alice!._id.toHexString()}`).expect(200);
+      const res = await adminAgent
+        .get(`/admin/users/${alice!._id.toHexString()}`)
+        .expect(200);
       expect(res.body.identity).toBeDefined();
       expect(res.body.identity.nationalId).toBe(BASE_REG.nationalId);
       expect(res.body.passwordHash).toBeUndefined();
     });
 
     it('200 — admin PATCH /admin/users/:id/role grants organizer_capable', async () => {
-      const alice = await userModel.findOne({ email: BASE_REG.email }).lean().exec();
+      const alice = await userModel
+        .findOne({ email: BASE_REG.email })
+        .lean()
+        .exec();
       const res = await adminAgent
         .patch(`/admin/users/${alice!._id.toHexString()}/role`)
         .send({ role: 'organizer_capable' })

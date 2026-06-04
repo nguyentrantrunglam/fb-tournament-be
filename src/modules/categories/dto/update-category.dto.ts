@@ -17,7 +17,9 @@ import {
 export class UpdateCategoryDto {
   @IsOptional()
   @IsString()
-  @Matches(/^[A-Z0-9_-]{2,12}$/, { message: 'Mã hạng mục không hợp lệ (^[A-Z0-9_-]{2,12}$)' })
+  @Matches(/^[A-Z0-9_-]{2,12}$/, {
+    message: 'Mã hạng mục không hợp lệ (^[A-Z0-9_-]{2,12}$)',
+  })
   code?: string;
 
   @IsOptional()

@@ -29,7 +29,10 @@ import { type Model } from 'mongoose';
 import { AppModule } from '../src/app.module';
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
 import { User, type UserDocument } from '../src/schemas/user.schema';
-import { TournamentRole, type TournamentRoleDocument } from '../src/schemas/tournament-role.schema';
+import {
+  TournamentRole,
+  type TournamentRoleDocument,
+} from '../src/schemas/tournament-role.schema';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -97,21 +100,37 @@ describe('Security fixes (e2e)', () => {
 
     // forbidNonWhitelisted: true is set in main.ts — mirror it here for H3.
     app.useGlobalPipes(
-      new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }),
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        forbidNonWhitelisted: true,
+      }),
     );
-    app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+    app.useGlobalInterceptors(
+      new ClassSerializerInterceptor(app.get(Reflector)),
+    );
     app.useGlobalFilters(new DomainExceptionFilter());
 
     await app.init();
 
-    userModel = moduleFixture.get<Model<UserDocument>>(getModelToken(User.name));
-    roleModel = moduleFixture.get<Model<TournamentRoleDocument>>(getModelToken(TournamentRole.name));
+    userModel = moduleFixture.get<Model<UserDocument>>(
+      getModelToken(User.name),
+    );
+    roleModel = moduleFixture.get<Model<TournamentRoleDocument>>(
+      getModelToken(TournamentRole.name),
+    );
 
     await Promise.all([userModel.syncIndexes(), roleModel.syncIndexes()]);
 
     // Register users.
-    await request(app.getHttpServer()).post('/auth/register').send(ALICE).expect(201);
-    await request(app.getHttpServer()).post('/auth/register').send(BOB).expect(201);
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(ALICE)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(BOB)
+      .expect(201);
 
     // Alice → organizer_capable so she can create tournaments.
     await userModel.updateOne(
@@ -122,8 +141,14 @@ describe('Security fixes (e2e)', () => {
     aliceAgent = request.agent(app.getHttpServer());
     bobAgent = request.agent(app.getHttpServer());
 
-    await aliceAgent.post('/auth/login').send({ email: ALICE.email, password: ALICE.password }).expect(200);
-    await bobAgent.post('/auth/login').send({ email: BOB.email, password: BOB.password }).expect(200);
+    await aliceAgent
+      .post('/auth/login')
+      .send({ email: ALICE.email, password: ALICE.password })
+      .expect(200);
+    await bobAgent
+      .post('/auth/login')
+      .send({ email: BOB.email, password: BOB.password })
+      .expect(200);
 
     // Alice creates a tournament — she becomes organizer automatically.
     const res = await aliceAgent
@@ -149,7 +174,7 @@ describe('Security fixes (e2e)', () => {
   // ---------------------------------------------------------------------------
 
   describe('C1 — presign cross-tenant IDOR', () => {
-    it('403 — bob (non-organizer) cannot presign into alice\'s tournament prefix', async () => {
+    it("403 — bob (non-organizer) cannot presign into alice's tournament prefix", async () => {
       const res = await bobAgent
         .post('/storage/presign')
         .send({
@@ -162,12 +187,10 @@ describe('Security fixes (e2e)', () => {
     });
 
     it('organizer (alice) passes the authz check — not 403 (may be 501 if Spaces unconfigured)', async () => {
-      const res = await aliceAgent
-        .post('/storage/presign')
-        .send({
-          key: `tournaments/${tournamentId}/banner.jpg`,
-          contentType: 'image/jpeg',
-        });
+      const res = await aliceAgent.post('/storage/presign').send({
+        key: `tournaments/${tournamentId}/banner.jpg`,
+        contentType: 'image/jpeg',
+      });
 
       // Auth check passes before Spaces check — response must NOT be 403.
       expect(res.status).not.toBe(403);
@@ -220,12 +243,10 @@ describe('Security fixes (e2e)', () => {
     });
 
     it('allowed image types pass DTO validation (image/png)', async () => {
-      const res = await aliceAgent
-        .post('/storage/presign')
-        .send({
-          key: `tournaments/${tournamentId}/logo.png`,
-          contentType: 'image/png',
-        });
+      const res = await aliceAgent.post('/storage/presign').send({
+        key: `tournaments/${tournamentId}/logo.png`,
+        contentType: 'image/png',
+      });
 
       // Passes DTO and authz — Spaces may or may not be configured in test env.
       expect([200, 501]).toContain(res.status);
@@ -290,7 +311,7 @@ describe('Security fixes (e2e)', () => {
           gender: 'male',
           dob: '1990-01-01',
           phone: '0900000099',
-          isAdmin: true,           // unknown field — must be rejected
+          isAdmin: true, // unknown field — must be rejected
         })
         .expect(400);
 
@@ -302,7 +323,7 @@ describe('Security fixes (e2e)', () => {
         .patch(`/tournaments/${tournamentId}`)
         .send({
           description: 'Updated',
-          unknownField: 'injected',  // not in UpdateTournamentDto
+          unknownField: 'injected', // not in UpdateTournamentDto
         })
         .expect(400);
 

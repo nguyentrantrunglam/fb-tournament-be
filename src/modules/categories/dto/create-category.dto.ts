@@ -12,7 +12,9 @@ import {
 export class CreateCategoryDto {
   /** Short code e.g. "MS", "WD", "XD". Uppercase alphanumeric + underscore/dash, 2-12 chars. */
   @IsString()
-  @Matches(/^[A-Z0-9_-]{2,12}$/, { message: 'Mã hạng mục không hợp lệ (^[A-Z0-9_-]{2,12}$)' })
+  @Matches(/^[A-Z0-9_-]{2,12}$/, {
+    message: 'Mã hạng mục không hợp lệ (^[A-Z0-9_-]{2,12}$)',
+  })
   code!: string;
 
   @IsString()

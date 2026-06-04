@@ -1,7 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Tournament, type TournamentDocument } from '../../schemas/tournament.schema';
+import {
+  Tournament,
+  type TournamentDocument,
+} from '../../schemas/tournament.schema';
 import {
   TournamentRole,
   type TournamentRoleDocument,
@@ -53,7 +56,10 @@ export class RefereesService {
 
     // Build referee-to-court mapping (court.currentRefereeUserId snapshot).
     const courts = await this.courtModel
-      .find({ tournamentId: tid, currentRefereeUserId: { $exists: true, $ne: null } })
+      .find({
+        tournamentId: tid,
+        currentRefereeUserId: { $exists: true, $ne: null },
+      })
       .select('name currentRefereeUserId')
       .lean()
       .exec();
@@ -72,7 +78,7 @@ export class RefereesService {
       .lean()
       .exec();
 
-    const userById: Record<string, typeof users[number]> = {};
+    const userById: Record<string, (typeof users)[number]> = {};
     for (const u of users) userById[u._id.toHexString()] = u;
 
     const referees = roleDocs.map((role) => {
@@ -129,7 +135,11 @@ export class RefereesService {
    * account matches the email, USER_NOT_FOUND (404) is returned, matching
    * the Firebase semantics. No out-of-band email is sent (MVP scope).
    */
-  async inviteRefereeByEmail(tid: string, dto: InviteRefereeDto, grantedBy: string) {
+  async inviteRefereeByEmail(
+    tid: string,
+    dto: InviteRefereeDto,
+    grantedBy: string,
+  ) {
     const tournament = await this.tournamentModel.findById(tid).lean().exec();
     if (!tournament) throw new NotFoundException('Giải đấu không tồn tại.');
 
@@ -180,7 +190,9 @@ export class RefereesService {
     });
 
     if (result.deletedCount === 0) {
-      throw new NotFoundException('Trọng tài không tồn tại trong giải đấu này.');
+      throw new NotFoundException(
+        'Trọng tài không tồn tại trong giải đấu này.',
+      );
     }
 
     return { ok: true };

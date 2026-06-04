@@ -35,9 +35,18 @@ import { type Model } from 'mongoose';
 import { AppModule } from '../src/app.module';
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
 import { User, type UserDocument } from '../src/schemas/user.schema';
-import { Category, type CategoryDocument } from '../src/schemas/category.schema';
-import { Tournament, type TournamentDocument } from '../src/schemas/tournament.schema';
-import { TournamentRole, type TournamentRoleDocument } from '../src/schemas/tournament-role.schema';
+import {
+  Category,
+  type CategoryDocument,
+} from '../src/schemas/category.schema';
+import {
+  Tournament,
+  type TournamentDocument,
+} from '../src/schemas/tournament.schema';
+import {
+  TournamentRole,
+  type TournamentRoleDocument,
+} from '../src/schemas/tournament-role.schema';
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -129,16 +138,28 @@ describe('Fees + Referees (e2e)', () => {
     app.use(passport.initialize());
     app.use(passport.session());
 
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
+    app.useGlobalInterceptors(
+      new ClassSerializerInterceptor(app.get(Reflector)),
+    );
     app.useGlobalFilters(new DomainExceptionFilter());
 
     await app.init();
 
-    userModel = moduleFixture.get<Model<UserDocument>>(getModelToken(User.name));
-    categoryModel = moduleFixture.get<Model<CategoryDocument>>(getModelToken(Category.name));
-    tournamentModel = moduleFixture.get<Model<TournamentDocument>>(getModelToken(Tournament.name));
-    roleModel = moduleFixture.get<Model<TournamentRoleDocument>>(getModelToken(TournamentRole.name));
+    userModel = moduleFixture.get<Model<UserDocument>>(
+      getModelToken(User.name),
+    );
+    categoryModel = moduleFixture.get<Model<CategoryDocument>>(
+      getModelToken(Category.name),
+    );
+    tournamentModel = moduleFixture.get<Model<TournamentDocument>>(
+      getModelToken(Tournament.name),
+    );
+    roleModel = moduleFixture.get<Model<TournamentRoleDocument>>(
+      getModelToken(TournamentRole.name),
+    );
 
     // Build all unique indexes before tests.
     await Promise.all([
@@ -150,22 +171,37 @@ describe('Fees + Referees (e2e)', () => {
 
     // Register all users.
     for (const user of [ALICE, BOB, CHARLIE, DIANA]) {
-      await request(app.getHttpServer()).post('/auth/register').send(user).expect(201);
+      await request(app.getHttpServer())
+        .post('/auth/register')
+        .send(user)
+        .expect(201);
     }
 
     // Elevate Alice to organizer_capable.
-    await userModel.updateOne({ email: ALICE.email }, { $set: { globalRole: 'organizer_capable' } });
+    await userModel.updateOne(
+      { email: ALICE.email },
+      { $set: { globalRole: 'organizer_capable' } },
+    );
 
     // Capture Charlie's userId for later use.
-    const charlieDoc = await userModel.findOne({ email: CHARLIE.email }).lean().exec();
+    const charlieDoc = await userModel
+      .findOne({ email: CHARLIE.email })
+      .lean()
+      .exec();
     charlieId = charlieDoc!._id.toHexString();
 
     // Create persistent agents.
     aliceAgent = request.agent(app.getHttpServer());
     bobAgent = request.agent(app.getHttpServer());
 
-    await aliceAgent.post('/auth/login').send({ email: ALICE.email, password: ALICE.password }).expect(200);
-    await bobAgent.post('/auth/login').send({ email: BOB.email, password: BOB.password }).expect(200);
+    await aliceAgent
+      .post('/auth/login')
+      .send({ email: ALICE.email, password: ALICE.password })
+      .expect(200);
+    await bobAgent
+      .post('/auth/login')
+      .send({ email: BOB.email, password: BOB.password })
+      .expect(200);
   }, 60_000);
 
   afterAll(async () => {
@@ -180,7 +216,12 @@ describe('Fees + Referees (e2e)', () => {
   it('Alice creates tournament', async () => {
     const res = await aliceAgent
       .post('/tournaments')
-      .send({ name: 'Fees Open 2026', startDate: '2026-09-01', endDate: '2026-09-05', location: 'Hà Nội' })
+      .send({
+        name: 'Fees Open 2026',
+        startDate: '2026-09-01',
+        endDate: '2026-09-05',
+        location: 'Hà Nội',
+      })
       .expect(201);
     tournamentId = res.body.id as string;
     expect(tournamentId).toBeDefined();
@@ -209,7 +250,9 @@ describe('Fees + Referees (e2e)', () => {
   // ---------------------------------------------------------------------------
 
   it('GET /tournaments/:tid/fees → paymentConfig null, category fee present', async () => {
-    const res = await aliceAgent.get(`/tournaments/${tournamentId}/fees`).expect(200);
+    const res = await aliceAgent
+      .get(`/tournaments/${tournamentId}/fees`)
+      .expect(200);
     expect(res.body.paymentConfig).toBeNull();
     expect(Array.isArray(res.body.categories)).toBe(true);
     expect(res.body.categories).toHaveLength(1);
@@ -243,7 +286,9 @@ describe('Fees + Referees (e2e)', () => {
   });
 
   it('GET /tournaments/:tid/fees after PATCH → reflects updated values', async () => {
-    const res = await aliceAgent.get(`/tournaments/${tournamentId}/fees`).expect(200);
+    const res = await aliceAgent
+      .get(`/tournaments/${tournamentId}/fees`)
+      .expect(200);
     expect(res.body.paymentConfig).not.toBeNull();
     expect(res.body.paymentConfig.accountHolder).toBe('NGUYEN VAN A');
     expect(res.body.paymentConfig.bankCode).toBe('VCB');
@@ -290,7 +335,9 @@ describe('Fees + Referees (e2e)', () => {
   // ---------------------------------------------------------------------------
 
   it('GET /tournaments/:tid/referees → lists Charlie, no PII in response', async () => {
-    const res = await aliceAgent.get(`/tournaments/${tournamentId}/referees`).expect(200);
+    const res = await aliceAgent
+      .get(`/tournaments/${tournamentId}/referees`)
+      .expect(200);
     expect(Array.isArray(res.body.referees)).toBe(true);
     expect(res.body.referees).toHaveLength(1);
 
@@ -379,7 +426,9 @@ describe('Fees + Referees (e2e)', () => {
   });
 
   it('GET /search-users → 403 for Bob', async () => {
-    await bobAgent.get(`/tournaments/${tournamentId}/search-users?q=Alice`).expect(403);
+    await bobAgent
+      .get(`/tournaments/${tournamentId}/search-users?q=Alice`)
+      .expect(403);
   });
 
   // ---------------------------------------------------------------------------
@@ -394,8 +443,12 @@ describe('Fees + Referees (e2e)', () => {
   });
 
   it('GET /referees after DELETE → Charlie no longer listed', async () => {
-    const res = await aliceAgent.get(`/tournaments/${tournamentId}/referees`).expect(200);
-    const ids = (res.body.referees as { userId: string }[]).map((r) => r.userId);
+    const res = await aliceAgent
+      .get(`/tournaments/${tournamentId}/referees`)
+      .expect(200);
+    const ids = (res.body.referees as { userId: string }[]).map(
+      (r) => r.userId,
+    );
     expect(ids).not.toContain(charlieId);
   });
 

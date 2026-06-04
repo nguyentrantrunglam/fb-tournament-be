@@ -41,7 +41,11 @@ export class UsersController {
     @Query('limit') limit = '50',
     @Query('q') search?: string,
   ) {
-    return this.usersService.listUsers(parseInt(skip, 10), parseInt(limit, 10), search);
+    return this.usersService.listUsers(
+      parseInt(skip, 10),
+      parseInt(limit, 10),
+      search,
+    );
   }
 
   /** Admin: single user detail including PII identity. */

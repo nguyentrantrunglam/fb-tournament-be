@@ -54,9 +54,13 @@ export class DomainExceptionFilter implements ExceptionFilter {
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
-      res.status(status).json(
-        typeof body === 'string' ? { statusCode: status, message: body } : body,
-      );
+      res
+        .status(status)
+        .json(
+          typeof body === 'string'
+            ? { statusCode: status, message: body }
+            : body,
+        );
       return;
     }
 
@@ -72,23 +76,38 @@ export class DomainExceptionFilter implements ExceptionFilter {
   private isCastError(e: unknown): boolean {
     if (typeof e !== 'object' || e === null) return false;
     const err = e as Record<string, unknown>;
-    return err['name'] === 'CastError' && (err['kind'] !== undefined || err['path'] !== undefined);
+    return (
+      err['name'] === 'CastError' &&
+      (err['kind'] !== undefined || err['path'] !== undefined)
+    );
   }
 
-  private isDuplicateKey(e: unknown): e is { code: number; keyPattern?: Record<string, unknown> } {
-    return typeof e === 'object' && e !== null && (e as { code?: number }).code === 11000;
+  private isDuplicateKey(
+    e: unknown,
+  ): e is { code: number; keyPattern?: Record<string, unknown> } {
+    return (
+      typeof e === 'object' &&
+      e !== null &&
+      (e as { code?: number }).code === 11000
+    );
   }
 
   private duplicateCode(e: { keyPattern?: Record<string, unknown> }): string {
     const keys = e.keyPattern ? Object.keys(e.keyPattern) : [];
     const key = keys[0];
     if (key === 'email') return 'EMAIL_ALREADY_USED';
-    if (key && key.includes('nationalId')) return 'NATIONAL_ID_ALREADY_REGISTERED';
+    if (key && key.includes('nationalId'))
+      return 'NATIONAL_ID_ALREADY_REGISTERED';
     if (key === 'slug') return 'SLUG_ALREADY_USED';
     // Compound index {tournamentId, code} on categories collection.
-    if (keys.includes('code') && keys.includes('tournamentId')) return 'CATEGORY_CODE_DUPLICATE';
+    if (keys.includes('code') && keys.includes('tournamentId'))
+      return 'CATEGORY_CODE_DUPLICATE';
     // Compound index {tournamentId, userId, role} on tournamentRoles collection.
-    if (keys.includes('role') && keys.includes('userId') && keys.includes('tournamentId'))
+    if (
+      keys.includes('role') &&
+      keys.includes('userId') &&
+      keys.includes('tournamentId')
+    )
       return 'TOURNAMENT_ROLE_ALREADY_GRANTED';
     return 'DUPLICATE_KEY';
   }

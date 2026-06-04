@@ -9,7 +9,10 @@ import {
 import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { TOURNAMENT_ROLES_KEY, type TournamentRole } from '../decorators/tournament-roles.decorator';
+import {
+  TOURNAMENT_ROLES_KEY,
+  type TournamentRole,
+} from '../decorators/tournament-roles.decorator';
 import type { GlobalRole } from '../decorators/roles.decorator';
 import {
   TournamentRole as TournamentRoleDoc,
@@ -47,10 +50,10 @@ export class TournamentRoleGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    const required = this.reflector.getAllAndOverride<TournamentRole[]>(TOURNAMENT_ROLES_KEY, [
-      ctx.getHandler(),
-      ctx.getClass(),
-    ]);
+    const required = this.reflector.getAllAndOverride<TournamentRole[]>(
+      TOURNAMENT_ROLES_KEY,
+      [ctx.getHandler(), ctx.getClass()],
+    );
 
     // No @TournamentRoles annotation — guard is a no-op.
     if (!required || required.length === 0) return true;
@@ -65,12 +68,14 @@ export class TournamentRoleGuard implements CanActivate {
     }
 
     // Admin bypasses per-tournament role check (global privilege).
-    if ((user.globalRole as GlobalRole) === 'admin') return true;
+    if (user.globalRole === 'admin') return true;
 
     const tid = req.params?.['tid'] ?? req.params?.['tournamentId'];
     if (!tid) {
       // Guard applied to a route without :tid/:tournamentId param — config error.
-      this.logger.error('TournamentRoleGuard: no :tid or :tournamentId param found on route');
+      this.logger.error(
+        'TournamentRoleGuard: no :tid or :tournamentId param found on route',
+      );
       throw new NotFoundException('Tournament param missing.');
     }
 

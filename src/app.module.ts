@@ -15,6 +15,7 @@ import { CourtsModule } from './modules/courts/courts.module';
 import { StorageModule } from './modules/storage/storage.module';
 import { FeesModule } from './modules/fees/fees.module';
 import { RefereesModule } from './modules/referees/referees.module';
+import { RegistrationsModule } from './modules/registrations/registrations.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { RefereesModule } from './modules/referees/referees.module';
     StorageModule,
     FeesModule,
     RefereesModule,
+    RegistrationsModule,
   ],
   providers: [
     // Rate limit everything.

@@ -8,7 +8,10 @@ export type CourtStatus = 'available' | 'busy';
  * currentMatchId is set by the match-assignment flow (Phase 5+ operations module).
  * DELETE is blocked at service layer when currentMatchId is set (match in progress).
  */
-@Schema({ collection: 'courts', timestamps: { createdAt: true, updatedAt: false } })
+@Schema({
+  collection: 'courts',
+  timestamps: { createdAt: true, updatedAt: false },
+})
 export class Court {
   _id!: Types.ObjectId;
 

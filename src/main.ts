@@ -28,10 +28,15 @@ async function bootstrap() {
   // and SameSite=None without Secure is rejected by browsers. Also block the placeholder secret.
   if (config.get('nodeEnv', { infer: true }) === 'production') {
     const problems: string[] = [];
-    if (sessionConf.secret === 'change-me-in-prod') problems.push('SESSION_SECRET is the placeholder');
+    if (sessionConf.secret === 'change-me-in-prod')
+      problems.push('SESSION_SECRET is the placeholder');
     if (!sessionConf.secure) problems.push('COOKIE_SECURE must be true');
-    if (sessionConf.sameSite !== 'none') problems.push("COOKIE_SAMESITE must be 'none' (cross-origin web)");
-    if (problems.length) throw new Error(`Invalid production session config: ${problems.join('; ')}`);
+    if (sessionConf.sameSite !== 'none')
+      problems.push("COOKIE_SAMESITE must be 'none' (cross-origin web)");
+    if (problems.length)
+      throw new Error(
+        `Invalid production session config: ${problems.join('; ')}`,
+      );
   }
 
   // ONE instance of each middleware, shared by REST (express) AND Socket.IO — connect.sid reused.
@@ -39,7 +44,10 @@ async function bootstrap() {
     secret: sessionConf.secret,
     resave: false,
     saveUninitialized: false,
-    store: MongoStore.create({ mongoUrl: mongoUri, collectionName: 'sessions' }),
+    store: MongoStore.create({
+      mongoUrl: mongoUri,
+      collectionName: 'sessions',
+    }),
     cookie: {
       httpOnly: true,
       sameSite: sessionConf.sameSite,
@@ -55,7 +63,13 @@ async function bootstrap() {
   app.use(passportSession);
 
   app.enableCors({ origin: webOrigin, credentials: true });
-  app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true, forbidNonWhitelisted: true }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      forbidNonWhitelisted: true,
+    }),
+  );
   // NOTE: no global ClassSerializerInterceptor — nothing uses @Exclude/@Expose (PII is
   // controlled by sanitizeUser), and class-transformer recurses infinitely on Mongoose
   // sub-documents (sponsors/paymentConfig). Express res.json handles plain objects fine.
@@ -63,7 +77,11 @@ async function bootstrap() {
 
   // Same middleware references on Socket.IO so connect.sid authenticates sockets too.
   app.useWebSocketAdapter(
-    new SessionIoAdapter(app, [sessionMiddleware, passportInit, passportSession], webOrigin),
+    new SessionIoAdapter(
+      app,
+      [sessionMiddleware, passportInit, passportSession],
+      webOrigin,
+    ),
   );
 
   const port = config.get('port', { infer: true });

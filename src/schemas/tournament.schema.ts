@@ -11,7 +11,10 @@ export class SponsorSubdoc {
   @Prop({ required: true })
   id!: string;
 
-  @Prop({ required: true, enum: ['diamond', 'gold', 'silver', 'operator', 'media'] })
+  @Prop({
+    required: true,
+    enum: ['diamond', 'gold', 'silver', 'operator', 'media'],
+  })
   tier!: 'diamond' | 'gold' | 'silver' | 'operator' | 'media';
 
   @Prop({ required: true })
@@ -48,13 +51,19 @@ export class PaymentConfigSubdoc {
   qrUrl?: string;
 }
 
-export const PaymentConfigSubdocSchema = SchemaFactory.createForClass(PaymentConfigSubdoc);
+export const PaymentConfigSubdocSchema =
+  SchemaFactory.createForClass(PaymentConfigSubdoc);
 
 // ---------------------------------------------------------------------------
 // Main schema
 // ---------------------------------------------------------------------------
 
-export type TournamentStatus = 'draft' | 'open' | 'running' | 'completed' | 'cancelled';
+export type TournamentStatus =
+  | 'draft'
+  | 'open'
+  | 'running'
+  | 'completed'
+  | 'cancelled';
 export type SponsorTier = 'diamond' | 'gold' | 'silver' | 'operator' | 'media';
 
 /**
@@ -63,7 +72,10 @@ export type SponsorTier = 'diamond' | 'gold' | 'silver' | 'operator' | 'media';
  * slug has a unique index — slug collision on create is handled by retrying with a suffix
  * (DomainExceptionFilter maps E11000 → SLUG_ALREADY_USED on the PATCH /slug flow).
  */
-@Schema({ collection: 'tournaments', timestamps: { createdAt: true, updatedAt: false } })
+@Schema({
+  collection: 'tournaments',
+  timestamps: { createdAt: true, updatedAt: false },
+})
 export class Tournament {
   _id!: Types.ObjectId;
 

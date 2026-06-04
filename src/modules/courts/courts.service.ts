@@ -23,8 +23,11 @@ export class CourtsService {
   }
 
   async update(tid: string, cid: string, dto: UpdateCourtDto) {
-    const court = await this.courtModel.findOne({ _id: cid, tournamentId: tid }).exec();
-    if (!court) throw new NotFoundException('Sân không tồn tại trong giải đấu này.');
+    const court = await this.courtModel
+      .findOne({ _id: cid, tournamentId: tid })
+      .exec();
+    if (!court)
+      throw new NotFoundException('Sân không tồn tại trong giải đấu này.');
 
     const patch: Record<string, unknown> = {};
     if (dto.name !== undefined) patch['name'] = dto.name.trim();
@@ -44,8 +47,11 @@ export class CourtsService {
    * The match-assignment flow (Phase 5+) sets and clears currentMatchId.
    */
   async delete(tid: string, cid: string) {
-    const court = await this.courtModel.findOne({ _id: cid, tournamentId: tid }).exec();
-    if (!court) throw new NotFoundException('Sân không tồn tại trong giải đấu này.');
+    const court = await this.courtModel
+      .findOne({ _id: cid, tournamentId: tid })
+      .exec();
+    if (!court)
+      throw new NotFoundException('Sân không tồn tại trong giải đấu này.');
 
     if (court.currentMatchId) {
       throw new DomainError(

@@ -32,7 +32,11 @@ export class TournamentRole {
 }
 
 export type TournamentRoleDocument = HydratedDocument<TournamentRole>;
-export const TournamentRoleSchema = SchemaFactory.createForClass(TournamentRole);
+export const TournamentRoleSchema =
+  SchemaFactory.createForClass(TournamentRole);
 
 /** Compound unique: one role per user per tournament. E11000 → DUPLICATE_KEY (already has the role). */
-TournamentRoleSchema.index({ tournamentId: 1, userId: 1, role: 1 }, { unique: true });
+TournamentRoleSchema.index(
+  { tournamentId: 1, userId: 1, role: 1 },
+  { unique: true },
+);

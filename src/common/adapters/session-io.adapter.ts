@@ -36,8 +36,14 @@ export class SessionIoAdapter extends IoAdapter {
       once: () => undefined,
       emit: () => undefined,
     };
-    const wrap = (mw: RequestHandler) => (socket: unknown, next: (err?: unknown) => void) =>
-      mw((socket as { request: unknown }).request as never, resShim as never, next as never);
+    const wrap =
+      (mw: RequestHandler) =>
+      (socket: unknown, next: (err?: unknown) => void) =>
+        mw(
+          (socket as { request: unknown }).request as never,
+          resShim as never,
+          next as never,
+        );
 
     for (const mw of this.middlewares) {
       (server as { use: (fn: unknown) => void }).use(wrap(mw));

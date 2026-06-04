@@ -38,7 +38,8 @@ export default (): AppConfig => ({
     'mongodb://localhost:27017/badminton?replicaSet=rs0&directConnection=true',
   session: {
     secret: process.env.SESSION_SECRET ?? 'change-me-in-prod',
-    sameSite: (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') ?? 'lax',
+    sameSite:
+      (process.env.COOKIE_SAMESITE as 'lax' | 'strict' | 'none') ?? 'lax',
     secure: process.env.COOKIE_SECURE === 'true',
   },
   webOrigin: process.env.WEB_ORIGIN ?? 'http://localhost:3000',

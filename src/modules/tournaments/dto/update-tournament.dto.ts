@@ -11,7 +11,13 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
-const SPONSOR_TIERS = ['diamond', 'gold', 'silver', 'operator', 'media'] as const;
+const SPONSOR_TIERS = [
+  'diamond',
+  'gold',
+  'silver',
+  'operator',
+  'media',
+] as const;
 type SponsorTier = (typeof SPONSOR_TIERS)[number];
 
 export class SponsorDto {

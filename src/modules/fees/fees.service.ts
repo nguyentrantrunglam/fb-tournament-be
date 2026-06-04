@@ -2,7 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Connection, Model } from 'mongoose';
 import { InjectConnection } from '@nestjs/mongoose';
-import { Tournament, type TournamentDocument } from '../../schemas/tournament.schema';
+import {
+  Tournament,
+  type TournamentDocument,
+} from '../../schemas/tournament.schema';
 import { Category, type CategoryDocument } from '../../schemas/category.schema';
 import type { PatchFeesDto } from './dto/patch-fees.dto';
 
@@ -32,7 +35,11 @@ export class FeesService {
   async getFeesOverview(tid: string) {
     const [tournament, categories] = await Promise.all([
       this.tournamentModel.findById(tid).lean().exec(),
-      this.categoryModel.find({ tournamentId: tid }).sort({ createdAt: 1 }).lean().exec(),
+      this.categoryModel
+        .find({ tournamentId: tid })
+        .sort({ createdAt: 1 })
+        .lean()
+        .exec(),
     ]);
 
     if (!tournament) throw new NotFoundException('Giải đấu không tồn tại.');
@@ -73,7 +80,9 @@ export class FeesService {
       if (found.length !== categoryIds.length) {
         const foundSet = new Set(found.map((c) => c._id.toHexString()));
         const missing = categoryIds.filter((id) => !foundSet.has(id));
-        throw new NotFoundException(`Hạng mục không tồn tại: ${missing.join(', ')}`);
+        throw new NotFoundException(
+          `Hạng mục không tồn tại: ${missing.join(', ')}`,
+        );
       }
     }
 
@@ -87,7 +96,11 @@ export class FeesService {
       }
 
       if (Object.keys(tournamentPatch).length > 0) {
-        await this.tournamentModel.findByIdAndUpdate(tid, { $set: tournamentPatch }, { session });
+        await this.tournamentModel.findByIdAndUpdate(
+          tid,
+          { $set: tournamentPatch },
+          { session },
+        );
       }
 
       // Bulk-update each category fee. We use individual updateOne calls within

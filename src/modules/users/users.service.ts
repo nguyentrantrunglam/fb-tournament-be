@@ -1,12 +1,20 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { User, type UserDocument, type GlobalRole, sanitizeUser, type SafeUser } from '../../schemas/user.schema';
+import {
+  User,
+  type UserDocument,
+  type GlobalRole,
+  sanitizeUser,
+  type SafeUser,
+} from '../../schemas/user.schema';
 import type { UpdateMeDto } from './dto/update-me.dto';
 
 @Injectable()
 export class UsersService {
-  constructor(@InjectModel(User.name) private readonly userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+  ) {}
 
   /** Return the calling user's full profile, including their own PII (identity). */
   async getMe(id: string): Promise<SafeUser> {
@@ -23,7 +31,8 @@ export class UsersService {
    */
   async updateMe(id: string, dto: UpdateMeDto): Promise<SafeUser> {
     const update: Record<string, unknown> = {};
-    if (dto.displayName !== undefined) update['displayName'] = dto.displayName.trim();
+    if (dto.displayName !== undefined)
+      update['displayName'] = dto.displayName.trim();
     if (dto.avatarUrl !== undefined) update['avatarUrl'] = dto.avatarUrl;
     // phone lives inside the identity subdoc — update only that field, never nationalId.
     if (dto.phone !== undefined) update['identity.phone'] = dto.phone;
@@ -78,7 +87,11 @@ export class UsersService {
   /** Grant or revoke a global role. Change is logged via Logger; audit log collection is a future phase. */
   async grantGlobalRole(id: string, role: GlobalRole): Promise<SafeUser> {
     const updated = await this.userModel
-      .findByIdAndUpdate(id, { $set: { globalRole: role } }, { returnDocument: 'after' })
+      .findByIdAndUpdate(
+        id,
+        { $set: { globalRole: role } },
+        { returnDocument: 'after' },
+      )
       .lean()
       .exec();
 

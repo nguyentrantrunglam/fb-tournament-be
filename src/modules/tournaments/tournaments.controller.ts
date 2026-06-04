@@ -75,7 +75,10 @@ export class TournamentsController {
   @Patch(':tid/visibility')
   @TournamentRoles('organizer')
   @UseGuards(TournamentRoleGuard)
-  setVisibility(@Param('tid') tid: string, @Body() dto: TournamentVisibilityDto) {
+  setVisibility(
+    @Param('tid') tid: string,
+    @Body() dto: TournamentVisibilityDto,
+  ) {
     return this.tournamentsService.setVisibility(tid, dto);
   }
 

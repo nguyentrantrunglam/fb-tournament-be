@@ -1,6 +1,9 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { TournamentRole, TournamentRoleSchema } from '../../schemas/tournament-role.schema';
+import {
+  TournamentRole,
+  TournamentRoleSchema,
+} from '../../schemas/tournament-role.schema';
 import { TournamentRoleGuard } from '../../common/guards/tournament-role.guard';
 
 /**

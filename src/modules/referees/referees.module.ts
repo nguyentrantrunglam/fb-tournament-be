@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
 import { Tournament, TournamentSchema } from '../../schemas/tournament.schema';
-import { TournamentRole, TournamentRoleSchema } from '../../schemas/tournament-role.schema';
+import {
+  TournamentRole,
+  TournamentRoleSchema,
+} from '../../schemas/tournament-role.schema';
 import { User, UserSchema } from '../../schemas/user.schema';
 import { Court, CourtSchema } from '../../schemas/court.schema';
 import { TournamentRolesModule } from '../tournament-roles/tournament-roles.module';

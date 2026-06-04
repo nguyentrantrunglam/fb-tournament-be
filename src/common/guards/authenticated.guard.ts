@@ -24,8 +24,11 @@ export class AuthenticatedGuard implements CanActivate {
     ]);
     if (isPublic) return true;
 
-    const req = ctx.switchToHttp().getRequest<{ isAuthenticated?: () => boolean }>();
-    const authenticated = typeof req.isAuthenticated === 'function' && req.isAuthenticated();
+    const req = ctx
+      .switchToHttp()
+      .getRequest<{ isAuthenticated?: () => boolean }>();
+    const authenticated =
+      typeof req.isAuthenticated === 'function' && req.isAuthenticated();
     if (!authenticated) {
       throw new UnauthorizedException('Vui lòng đăng nhập để tiếp tục.');
     }

@@ -6,7 +6,10 @@ import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { AppConfig } from '../../config/configuration';
 import { DomainError } from '../../common/domain-error';
-import { TournamentRole, type TournamentRoleDocument } from '../../schemas/tournament-role.schema';
+import {
+  TournamentRole,
+  type TournamentRoleDocument,
+} from '../../schemas/tournament-role.schema';
 import type { SessionUser } from '../../schemas/user.schema';
 import { ALLOWED_IMAGE_TYPES } from './dto/presign-upload.dto';
 import type { PresignUploadDto } from './dto/presign-upload.dto';
@@ -39,13 +42,17 @@ export class StorageService {
       this.client = new S3Client({
         endpoint: spaces.endpoint,
         region: spaces.region || 'us-east-1',
-        credentials: { accessKeyId: spaces.key, secretAccessKey: spaces.secret },
+        credentials: {
+          accessKeyId: spaces.key,
+          secretAccessKey: spaces.secret,
+        },
         // MinIO (dev) needs path-style; DigitalOcean Spaces (prod) uses virtual-hosted.
         forcePathStyle: spaces.forcePathStyle,
       });
       this.bucket = spaces.bucket;
       // Objects served from publicBaseUrl if set (MinIO), else {endpoint}/{bucket} (Spaces path form).
-      this.publicBaseUrl = spaces.publicBaseUrl || `${spaces.endpoint}/${spaces.bucket}`;
+      this.publicBaseUrl =
+        spaces.publicBaseUrl || `${spaces.endpoint}/${spaces.bucket}`;
     }
   }
 

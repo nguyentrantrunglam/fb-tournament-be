@@ -11,7 +11,8 @@ export class IdentitySubdoc {
   phone?: string;
 }
 
-export const IdentitySubdocSchema = SchemaFactory.createForClass(IdentitySubdoc);
+export const IdentitySubdocSchema =
+  SchemaFactory.createForClass(IdentitySubdoc);
 
 export type GlobalRole = 'athlete' | 'organizer_capable' | 'admin';
 
@@ -20,7 +21,10 @@ export type GlobalRole = 'athlete' | 'organizer_capable' | 'admin';
  * passwordHash has `select: false` so it is never included in queries unless
  * explicitly requested with `.select('+passwordHash')`.
  */
-@Schema({ collection: 'users', timestamps: { createdAt: true, updatedAt: false } })
+@Schema({
+  collection: 'users',
+  timestamps: { createdAt: true, updatedAt: false },
+})
 export class User {
   /** Injected by Mongoose — always present after save. */
   _id!: Types.ObjectId;
@@ -44,7 +48,11 @@ export class User {
   @Prop()
   avatarUrl?: string;
 
-  @Prop({ required: true, enum: ['athlete', 'organizer_capable', 'admin'], default: 'athlete' })
+  @Prop({
+    required: true,
+    enum: ['athlete', 'organizer_capable', 'admin'],
+    default: 'athlete',
+  })
   globalRole!: GlobalRole;
 
   @Prop({ type: IdentitySubdocSchema, required: true })
@@ -76,14 +84,16 @@ UserSchema.index({ 'identity.nationalId': 1 }, { unique: true });
  * class-transformer @Exclude alone. This function is the single controlled exit point.
  */
 export function sanitizeUser(
-  user: UserDocument | (Partial<User> & { _id: Types.ObjectId; createdAt?: Date }),
+  user:
+    | UserDocument
+    | (Partial<User> & { _id: Types.ObjectId; createdAt?: Date }),
   opts: { includeIdentity: boolean },
 ): SafeUser {
   const base: SafeUser = {
     id: user._id.toHexString(),
     email: user.email ?? '',
     displayName: user.displayName ?? '',
-    gender: user.gender ?? 'athlete' as unknown as 'male' | 'female',
+    gender: user.gender ?? ('athlete' as unknown as 'male' | 'female'),
     dob: (user.dob ?? new Date()).toISOString(),
     avatarUrl: user.avatarUrl,
     globalRole: user.globalRole ?? 'athlete',

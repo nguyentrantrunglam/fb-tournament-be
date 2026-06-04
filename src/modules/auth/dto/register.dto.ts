@@ -32,7 +32,9 @@ export class RegisterDto {
   gender!: 'male' | 'female';
 
   /** ISO date string YYYY-MM-DD. */
-  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'dob phải theo định dạng YYYY-MM-DD' })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, {
+    message: 'dob phải theo định dạng YYYY-MM-DD',
+  })
   dob!: string;
 
   @IsString()

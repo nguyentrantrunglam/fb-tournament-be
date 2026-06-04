@@ -5,7 +5,13 @@ import { createHash, randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import * as nodemailer from 'nodemailer';
 import { ConfigService } from '@nestjs/config';
-import { User, type UserDocument, type SessionUser, sanitizeUser, type SafeUser } from '../../schemas/user.schema';
+import {
+  User,
+  type UserDocument,
+  type SessionUser,
+  sanitizeUser,
+  type SafeUser,
+} from '../../schemas/user.schema';
 import type { AppConfig } from '../../config/configuration';
 import type { RegisterDto } from './dto/register.dto';
 
@@ -24,7 +30,9 @@ export class AuthService {
    * The DomainExceptionFilter maps E11000 → NATIONAL_ID_ALREADY_REGISTERED / EMAIL_ALREADY_USED.
    * Returns a sanitized user (no passwordHash, no identity) for the HTTP response.
    */
-  async register(dto: RegisterDto): Promise<{ safeUser: SafeUser; sessionUser: SessionUser }> {
+  async register(
+    dto: RegisterDto,
+  ): Promise<{ safeUser: SafeUser; sessionUser: SessionUser }> {
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     const created = await this.userModel.create({
@@ -42,7 +50,10 @@ export class AuthService {
     });
 
     const safeUser = sanitizeUser(created, { includeIdentity: false });
-    const sessionUser: SessionUser = { id: created._id.toHexString(), globalRole: created.globalRole };
+    const sessionUser: SessionUser = {
+      id: created._id.toHexString(),
+      globalRole: created.globalRole,
+    };
 
     return { safeUser, sessionUser };
   }
@@ -52,7 +63,10 @@ export class AuthService {
    * Selects passwordHash explicitly (field has select:false) and compares via bcrypt.
    * Returns a minimal SessionUser on success, null on failure.
    */
-  async validateUser(email: string, password: string): Promise<SessionUser | null> {
+  async validateUser(
+    email: string,
+    password: string,
+  ): Promise<SessionUser | null> {
     const user = await this.userModel
       .findOne({ email: email.toLowerCase().trim() })
       .select('+passwordHash')
@@ -73,10 +87,14 @@ export class AuthService {
    * Token: 32 random bytes (hex) → sha256 hash stored in DB, raw token emailed.
    */
   async requestPasswordReset(email: string): Promise<void> {
-    const user = await this.userModel.findOne({ email: email.toLowerCase().trim() }).exec();
+    const user = await this.userModel
+      .findOne({ email: email.toLowerCase().trim() })
+      .exec();
     if (!user) {
       // Silent — don't leak account existence.
-      this.logger.log(`Password reset requested for unknown email (suppressed)`);
+      this.logger.log(
+        `Password reset requested for unknown email (suppressed)`,
+      );
       return;
     }
 
@@ -94,7 +112,9 @@ export class AuthService {
 
     if (!smtpHost) {
       // Dev mode: log the reset link so developers can test without SMTP.
-      this.logger.log(`[DEV] Password reset link for ${user.email}: ${resetLink}`);
+      this.logger.log(
+        `[DEV] Password reset link for ${user.email}: ${resetLink}`,
+      );
       return;
     }
 

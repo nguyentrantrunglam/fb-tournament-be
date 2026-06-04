@@ -12,12 +12,14 @@ import {
   TOURNAMENT_ROLES_KEY,
   type TournamentRole,
 } from '../../common/decorators/tournament-roles.decorator';
-import type { GlobalRole } from '../../common/decorators/roles.decorator';
 import {
   TournamentRole as TournamentRoleDoc,
   type TournamentRoleDocument,
 } from '../../schemas/tournament-role.schema';
-import { Category, type CategoryDocument } from '../../schemas/category.schema';
+import {
+  Registration,
+  type RegistrationDocument,
+} from '../../schemas/registration.schema';
 import type { SessionUser } from '../../schemas/user.schema';
 
 type RequestWithUser = {
@@ -26,22 +28,23 @@ type RequestWithUser = {
 };
 
 /**
- * Specialized guard for category-scoped routes (e.g. PATCH /categories/:cid).
+ * Guard for registration-scoped routes (e.g. POST /registrations/:rid/approve).
  *
- * The base TournamentRoleGuard reads :tid directly from the route param.
- * Category routes use :cid instead, so we must first load the category document
- * to resolve its tournamentId, then check the caller's role on that tournament.
+ * Resolves the tournament from the registration document identified by :rid,
+ * then checks whether the authenticated session user holds the required role
+ * on that tournament. Mirrors CategoryTournamentRoleGuard but uses the
+ * registrations collection as the indirection layer.
  *
  * Admin bypasses (globalRole === 'admin').
  */
 @Injectable()
-export class CategoryTournamentRoleGuard implements CanActivate {
+export class RegistrationTournamentRoleGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     @InjectModel(TournamentRoleDoc.name)
     private readonly roleModel: Model<TournamentRoleDocument>,
-    @InjectModel(Category.name)
-    private readonly categoryModel: Model<CategoryDocument>,
+    @InjectModel(Registration.name)
+    private readonly registrationModel: Model<RegistrationDocument>,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -57,18 +60,18 @@ export class CategoryTournamentRoleGuard implements CanActivate {
 
     if (user.globalRole === 'admin') return true;
 
-    const cid = req.params?.['cid'];
-    if (!cid) throw new NotFoundException('Category param missing.');
+    const rid = req.params?.['rid'];
+    if (!rid) throw new NotFoundException('Registration param missing.');
 
-    // Resolve the tournament that owns this category.
-    const category = await this.categoryModel
-      .findById(cid)
+    // Resolve tournament from the registration document.
+    const reg = await this.registrationModel
+      .findById(rid)
       .select('tournamentId')
       .lean()
       .exec();
-    if (!category) throw new NotFoundException('Hạng mục không tồn tại.');
+    if (!reg) throw new NotFoundException('Đăng ký không tồn tại.');
 
-    const tid = category.tournamentId;
+    const tid = reg.tournamentId;
 
     const roleDoc = await this.roleModel
       .findOne({ tournamentId: tid, userId: user.id, role: { $in: required } })

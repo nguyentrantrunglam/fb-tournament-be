@@ -34,9 +34,18 @@ import { type Model } from 'mongoose';
 import { AppModule } from '../src/app.module';
 import { DomainExceptionFilter } from '../src/common/filters/domain-exception.filter';
 import { User, type UserDocument } from '../src/schemas/user.schema';
-import { Category, type CategoryDocument } from '../src/schemas/category.schema';
-import { Tournament, type TournamentDocument } from '../src/schemas/tournament.schema';
-import { TournamentRole, type TournamentRoleDocument } from '../src/schemas/tournament-role.schema';
+import {
+  Category,
+  type CategoryDocument,
+} from '../src/schemas/category.schema';
+import {
+  Tournament,
+  type TournamentDocument,
+} from '../src/schemas/tournament.schema';
+import {
+  TournamentRole,
+  type TournamentRoleDocument,
+} from '../src/schemas/tournament-role.schema';
 
 // ---------------------------------------------------------------------------
 // Test user fixtures
@@ -106,17 +115,29 @@ describe('Tournaments + Categories + Courts (e2e)', () => {
     app.use(passport.initialize());
     app.use(passport.session());
 
-    app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-    app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
+    app.useGlobalInterceptors(
+      new ClassSerializerInterceptor(app.get(Reflector)),
+    );
     app.useGlobalFilters(new DomainExceptionFilter());
 
     await app.init();
 
     // Resolve models and ensure all unique indexes are built before tests run.
-    userModel = moduleFixture.get<Model<UserDocument>>(getModelToken(User.name));
-    categoryModel = moduleFixture.get<Model<CategoryDocument>>(getModelToken(Category.name));
-    tournamentModel = moduleFixture.get<Model<TournamentDocument>>(getModelToken(Tournament.name));
-    roleModel = moduleFixture.get<Model<TournamentRoleDocument>>(getModelToken(TournamentRole.name));
+    userModel = moduleFixture.get<Model<UserDocument>>(
+      getModelToken(User.name),
+    );
+    categoryModel = moduleFixture.get<Model<CategoryDocument>>(
+      getModelToken(Category.name),
+    );
+    tournamentModel = moduleFixture.get<Model<TournamentDocument>>(
+      getModelToken(Tournament.name),
+    );
+    roleModel = moduleFixture.get<Model<TournamentRoleDocument>>(
+      getModelToken(TournamentRole.name),
+    );
 
     await Promise.all([
       userModel.syncIndexes(),
@@ -126,8 +147,14 @@ describe('Tournaments + Categories + Courts (e2e)', () => {
     ]);
 
     // Register alice and bob.
-    await request(app.getHttpServer()).post('/auth/register').send(ALICE).expect(201);
-    await request(app.getHttpServer()).post('/auth/register').send(BOB).expect(201);
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(ALICE)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(BOB)
+      .expect(201);
 
     // Elevate alice to organizer_capable directly in DB (mirrors documented bootstrap).
     await userModel.updateOne(
@@ -139,8 +166,14 @@ describe('Tournaments + Categories + Courts (e2e)', () => {
     aliceAgent = request.agent(app.getHttpServer());
     bobAgent = request.agent(app.getHttpServer());
 
-    await aliceAgent.post('/auth/login').send({ email: ALICE.email, password: ALICE.password }).expect(200);
-    await bobAgent.post('/auth/login').send({ email: BOB.email, password: BOB.password }).expect(200);
+    await aliceAgent
+      .post('/auth/login')
+      .send({ email: ALICE.email, password: ALICE.password })
+      .expect(200);
+    await bobAgent
+      .post('/auth/login')
+      .send({ email: BOB.email, password: BOB.password })
+      .expect(200);
   }, 60_000);
 
   afterAll(async () => {
@@ -170,7 +203,11 @@ describe('Tournaments + Categories + Courts (e2e)', () => {
     // Organizer role must be auto-granted.
     const alice = await userModel.findOne({ email: ALICE.email }).lean().exec();
     const roleDoc = await roleModel
-      .findOne({ tournamentId, userId: alice!._id.toHexString(), role: 'organizer' })
+      .findOne({
+        tournamentId,
+        userId: alice!._id.toHexString(),
+        role: 'organizer',
+      })
       .lean()
       .exec();
     expect(roleDoc).not.toBeNull();
@@ -201,7 +238,7 @@ describe('Tournaments + Categories + Courts (e2e)', () => {
       .post(`/tournaments/${tournamentId}/categories`)
       .send({
         code: 'MS',
-        name: 'Men\'s Singles',
+        name: "Men's Singles",
         playerCount: 1,
         genderRequirement: 'men_only',
         bestOf: 3,
@@ -224,7 +261,7 @@ describe('Tournaments + Categories + Courts (e2e)', () => {
       .post(`/tournaments/${tournamentId}/categories`)
       .send({
         code: 'MS',
-        name: 'Men\'s Singles Duplicate',
+        name: "Men's Singles Duplicate",
         playerCount: 1,
         genderRequirement: 'men_only',
         bestOf: 3,
