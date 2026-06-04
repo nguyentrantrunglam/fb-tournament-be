@@ -26,6 +26,7 @@ import type { TeamPhotoDto } from './dto/team-photo.dto';
 import {
   resolveUsers,
   buildRegistrationListItem,
+  buildTeamsByCategoryResponse,
 } from './registrations-list.helper';
 
 /** Statuses that occupy a slot toward maxTeams. */
@@ -381,23 +382,25 @@ export class RegistrationsService {
   // ---------------------------------------------------------------------------
 
   /**
-   * Set or clear a draw seed. Only permitted once registration is closed — seeds
-   * are assigned in the config phase before bracket generation.
+   * Set or clear a draw seed. Seed is allowed on any approved registration
+   * regardless of category registration status — category status no longer gates it.
+   * Only approved registrations can receive a seed; pending/rejected/withdrawn are rejected.
    */
   async setSeed(rid: string, dto: SetSeedDto) {
     const reg = await this.loadRegistration(rid);
+
+    if (reg.status !== 'approved') {
+      throw new DomainError(
+        'REGISTRATION_NOT_APPROVED',
+        'Chỉ có thể gán seed cho đội đã được duyệt.',
+      );
+    }
+
     const category = await this.categoryModel
       .findById(reg.categoryId)
       .lean()
       .exec();
     if (!category) throw new NotFoundException('Hạng mục không tồn tại.');
-
-    if (category.registrationStatus !== 'closed') {
-      throw new DomainError(
-        'REGISTRATION_NOT_CLOSED',
-        'Seed chỉ có thể đặt sau khi đóng đăng ký.',
-      );
-    }
 
     const seedValue = dto.seed ?? null;
     if (seedValue === null) {
@@ -411,6 +414,9 @@ export class RegistrationsService {
         { $set: { seed: seedValue } },
       );
     }
+    // Push so other organizers viewing the team list see the seed change live,
+    // instead of waiting out the client staleTime.
+    this.emitUpdated(reg.tournamentId, reg.categoryId, rid);
     return { ok: true };
   }
 
@@ -505,6 +511,65 @@ export class RegistrationsService {
     });
 
     return { registrations, totalCount: registrations.length };
+  }
+
+  /**
+   * Returns approved registrations for a tournament grouped by category.
+   * Only approved teams are included — pending/rejected/withdrawn are excluded.
+   * Player names are displayName only; no PII (email, nationalId, phone) is returned.
+   */
+  async listTeamsByCategory(tid: string) {
+    const regs = await this.registrationModel
+      .find({ tournamentId: tid, status: 'approved' })
+      .sort({ createdAt: 1 })
+      .lean()
+      .exec();
+
+    if (regs.length === 0) {
+      // Still need to return categories even if no approved teams.
+      const categories = await this.categoryModel
+        .find({ tournamentId: tid })
+        .sort({ createdAt: 1 })
+        .lean()
+        .exec();
+      return {
+        categories: categories.map((c) => ({
+          id: c._id.toHexString(),
+          code: c.code,
+          name: c.name,
+          playerCount: c.playerCount,
+          approvedCount: 0,
+          seededCount: 0,
+          teams: [],
+        })),
+      };
+    }
+
+    const userIds = new Set<string>();
+    const categoryIds = new Set<string>();
+    for (const r of regs) {
+      userIds.add(r.primaryUserId);
+      if (r.partnerUserId) userIds.add(r.partnerUserId);
+      categoryIds.add(r.categoryId);
+    }
+
+    // Load users (displayName only — no PII fields) and all tournament categories.
+    const [users, categories] = await Promise.all([
+      this.userModel
+        .find({ _id: { $in: [...userIds] } })
+        .select('displayName')
+        .lean()
+        .exec(),
+      this.categoryModel
+        .find({ tournamentId: tid })
+        .sort({ createdAt: 1 })
+        .lean()
+        .exec(),
+    ]);
+
+    const userMap = new Map(users.map((u) => [u._id.toHexString(), u]));
+
+    return buildTeamsByCategoryResponse(regs, categories, userMap);
   }
 
   // ---------------------------------------------------------------------------

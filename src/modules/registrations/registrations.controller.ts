@@ -44,6 +44,18 @@ export class RegistrationsController {
   }
 
   /**
+   * Returns approved teams grouped by category for the tournament.
+   * Only approved registrations are included. Players carry displayName only — no PII.
+   * Organizer-only.
+   */
+  @Get('tournaments/:tid/teams')
+  @TournamentRoles('organizer')
+  @UseGuards(TournamentRoleGuard)
+  listTeamsByCategory(@Param('tid') tid: string) {
+    return this.registrationsService.listTeamsByCategory(tid);
+  }
+
+  /**
    * Search users for partner picker (authenticated — no organizer role required).
    * Athletes use this to find partners before submitting a doubles registration.
    */

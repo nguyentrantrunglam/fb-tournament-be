@@ -100,6 +100,93 @@ type LeanCategory = {
   code: string;
 };
 
+type LeanCategoryFull = {
+  _id: { toHexString(): string };
+  code: string;
+  name: string;
+  playerCount: 1 | 2;
+  createdAt: Date;
+};
+
+type LeanDisplayUser = {
+  _id: { toHexString(): string };
+  displayName: string;
+};
+
+type LeanRegApproved = {
+  _id: { toHexString(): string };
+  categoryId: string;
+  primaryUserId: string;
+  partnerUserId?: string;
+  seed?: number;
+  teamPhotoUrl?: string;
+  createdAt: Date;
+};
+
+/**
+ * Groups approved registrations by category and maps them to the teams response contract.
+ * Categories are sorted by createdAt asc. Teams per category are sorted seed asc
+ * (nulls last), then createdAt asc.
+ * Players carry displayName only — no PII fields included.
+ */
+export function buildTeamsByCategoryResponse(
+  regs: LeanRegApproved[],
+  categories: LeanCategoryFull[],
+  userMap: Map<string, LeanDisplayUser>,
+) {
+  // Group registrations by categoryId.
+  const regsByCategory = new Map<string, LeanRegApproved[]>();
+  for (const r of regs) {
+    const list = regsByCategory.get(r.categoryId) ?? [];
+    list.push(r);
+    regsByCategory.set(r.categoryId, list);
+  }
+
+  const result = categories.map((cat) => {
+    const catId = cat._id.toHexString();
+    const catRegs = regsByCategory.get(catId) ?? [];
+
+    // Sort: seed asc (nulls last), then createdAt asc.
+    const sorted = [...catRegs].sort((a, b) => {
+      const sa = a.seed ?? null;
+      const sb = b.seed ?? null;
+      if (sa !== null && sb !== null) return sa - sb;
+      if (sa !== null) return -1;
+      if (sb !== null) return 1;
+      return a.createdAt.getTime() - b.createdAt.getTime();
+    });
+
+    const teams = sorted.map((r) => {
+      const primary = userMap.get(r.primaryUserId);
+      const players: { name: string }[] = [
+        { name: primary?.displayName ?? '' },
+      ];
+      if (r.partnerUserId) {
+        const partner = userMap.get(r.partnerUserId);
+        players.push({ name: partner?.displayName ?? '' });
+      }
+      return {
+        id: r._id.toHexString(),
+        seed: r.seed ?? null,
+        teamPhotoUrl: r.teamPhotoUrl ?? null,
+        players,
+      };
+    });
+
+    return {
+      id: catId,
+      code: cat.code,
+      name: cat.name,
+      playerCount: cat.playerCount,
+      approvedCount: teams.length,
+      seededCount: teams.filter((t) => t.seed !== null).length,
+      teams,
+    };
+  });
+
+  return { categories: result };
+}
+
 /** Builds the safe list-item shape for the organizer registration dashboard. */
 export function buildRegistrationListItem(
   reg: LeanReg,

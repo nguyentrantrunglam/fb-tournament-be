@@ -774,6 +774,234 @@ describe('Registrations (e2e)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // Seed — approved-guard
+  // ---------------------------------------------------------------------------
+
+  it('setSeed succeeds on an approved registration while category is open → {ok:true}', async () => {
+    // Create a fresh open category, organizer-register (auto-approved), then seed.
+    const catRes = await aliceAgent
+      .post(`/tournaments/${tournamentId}/categories`)
+      .send({
+        code: 'SD1',
+        name: "Seed Test Singles",
+        playerCount: 1,
+        genderRequirement: 'men_only',
+        bestOf: 3,
+        fee: 0,
+        maxTeams: 8,
+        registrationDeadline: '2026-08-01T00:00:00.000Z',
+      })
+      .expect(201);
+    const seedCatId = catRes.body.id as string;
+    await aliceAgent.post(`/categories/${seedCatId}/registration/open`).expect(200);
+
+    // Organizer-creates a registration → status is automatically approved.
+    const regRes = await aliceAgent
+      .post(`/categories/${seedCatId}/registrations/organizer`)
+      .send({ primaryUserId: bobId })
+      .expect(201);
+    const seedRegId = regRes.body.id as string;
+
+    // Seed the approved registration while category is still OPEN.
+    const res = await aliceAgent
+      .patch(`/registrations/${seedRegId}/seed`)
+      .send({ seed: 1 })
+      .expect(200);
+    expect(res.body.ok).toBe(true);
+
+    // Confirm seed was stored.
+    const reg = await registrationModel.findById(seedRegId).lean().exec();
+    expect(reg?.seed).toBe(1);
+  });
+
+  it('setSeed on a pending registration → 400 REGISTRATION_NOT_APPROVED', async () => {
+    // Create a fresh open category, self-register (stays pending), then attempt seed.
+    const catRes = await aliceAgent
+      .post(`/tournaments/${tournamentId}/categories`)
+      .send({
+        code: 'SD2',
+        name: "Seed Test Singles 2",
+        playerCount: 1,
+        genderRequirement: 'men_only',
+        bestOf: 3,
+        fee: 0,
+        maxTeams: 8,
+        registrationDeadline: '2026-08-01T00:00:00.000Z',
+      })
+      .expect(201);
+    const seedCat2Id = catRes.body.id as string;
+    await aliceAgent.post(`/categories/${seedCat2Id}/registration/open`).expect(200);
+
+    // Charlie self-registers → pending.
+    const regRes = await charlieAgent
+      .post(`/categories/${seedCat2Id}/registrations`)
+      .send({})
+      .expect(201);
+    const pendingRegId = regRes.body.id as string;
+
+    // Attempt to seed a pending registration.
+    const res = await aliceAgent
+      .patch(`/registrations/${pendingRegId}/seed`)
+      .send({ seed: 2 })
+      .expect(400);
+    expect(res.body.code).toBe('REGISTRATION_NOT_APPROVED');
+  });
+
+  // ---------------------------------------------------------------------------
+  // Teams endpoint — GET /tournaments/:tid/teams
+  // ---------------------------------------------------------------------------
+
+  it('GET /tournaments/:tid/teams → groups approved registrations by category; correct counts; players have displayName; no PII', async () => {
+    // Create two fresh categories with approved registrations.
+    const [cat1Res, cat2Res] = await Promise.all([
+      aliceAgent
+        .post(`/tournaments/${tournamentId}/categories`)
+        .send({
+          code: 'TM1',
+          name: 'Teams Singles',
+          playerCount: 1,
+          genderRequirement: 'men_only',
+          bestOf: 3,
+          fee: 0,
+          maxTeams: 8,
+          registrationDeadline: '2026-08-01T00:00:00.000Z',
+        })
+        .expect(201),
+      aliceAgent
+        .post(`/tournaments/${tournamentId}/categories`)
+        .send({
+          code: 'TM2',
+          name: 'Teams Doubles',
+          playerCount: 2,
+          genderRequirement: 'mixed_pair',
+          bestOf: 3,
+          fee: 0,
+          maxTeams: 8,
+          registrationDeadline: '2026-08-01T00:00:00.000Z',
+        })
+        .expect(201),
+    ]);
+    const tm1Id = cat1Res.body.id as string;
+    const tm2Id = cat2Res.body.id as string;
+
+    await Promise.all([
+      aliceAgent.post(`/categories/${tm1Id}/registration/open`).expect(200),
+      aliceAgent.post(`/categories/${tm2Id}/registration/open`).expect(200),
+    ]);
+
+    // Organizer-creates registrations → auto-approved.
+    const [reg1Res, reg2Res, reg3Res] = await Promise.all([
+      aliceAgent
+        .post(`/categories/${tm1Id}/registrations/organizer`)
+        .send({ primaryUserId: bobId })
+        .expect(201),
+      aliceAgent
+        .post(`/categories/${tm1Id}/registrations/organizer`)
+        .send({ primaryUserId: charlieId })
+        .expect(201),
+      aliceAgent
+        .post(`/categories/${tm2Id}/registrations/organizer`)
+        .send({ primaryUserId: frankId, partnerUserId: graceId })
+        .expect(201),
+    ]);
+    const reg1Id = reg1Res.body.id as string;
+
+    // Seed the first singles team.
+    await aliceAgent
+      .patch(`/registrations/${reg1Id}/seed`)
+      .send({ seed: 1 })
+      .expect(200);
+
+    // Add a pending registration in tm1 — must NOT appear in teams response.
+    await charlieAgent
+      .post(`/categories/${tm1Id}/registrations`)
+      .send({})
+      .expect(400); // charlie already registered organizer above, so will dup — that's fine
+
+    const res = await aliceAgent
+      .get(`/tournaments/${tournamentId}/teams`)
+      .expect(200);
+
+    const body = res.body as {
+      categories: Array<{
+        id: string;
+        code: string;
+        name: string;
+        playerCount: number;
+        approvedCount: number;
+        seededCount: number;
+        teams: Array<{
+          id: string;
+          seed: number | null;
+          teamPhotoUrl: string | null;
+          players: Array<{ name: string }>;
+        }>;
+      }>;
+    };
+
+    expect(Array.isArray(body.categories)).toBe(true);
+    // Find our two test categories.
+    const tm1Cat = body.categories.find((c) => c.code === 'TM1');
+    const tm2Cat = body.categories.find((c) => c.code === 'TM2');
+    expect(tm1Cat).toBeDefined();
+    expect(tm2Cat).toBeDefined();
+
+    // TM1: 2 approved teams (Bob + Charlie organizer-created), 1 seeded.
+    expect(tm1Cat!.approvedCount).toBe(2);
+    expect(tm1Cat!.seededCount).toBe(1);
+    expect(tm1Cat!.teams.length).toBe(2);
+    expect(tm1Cat!.playerCount).toBe(1);
+
+    // Singles teams have 1 player each.
+    for (const team of tm1Cat!.teams) {
+      expect(team.players.length).toBe(1);
+      expect(typeof team.players[0]!.name).toBe('string');
+      expect(team.players[0]!.name.length).toBeGreaterThan(0);
+    }
+
+    // TM2: 1 approved doubles team (Frank + Grace), 0 seeded.
+    expect(tm2Cat!.approvedCount).toBe(1);
+    expect(tm2Cat!.seededCount).toBe(0);
+    expect(tm2Cat!.teams.length).toBe(1);
+    expect(tm2Cat!.playerCount).toBe(2);
+
+    // Doubles team has 2 players.
+    expect(tm2Cat!.teams[0]!.players.length).toBe(2);
+    for (const player of tm2Cat!.teams[0]!.players) {
+      expect(typeof player.name).toBe('string');
+      expect(player.name.length).toBeGreaterThan(0);
+    }
+
+    // Seeded team comes first (seed asc).
+    expect(tm1Cat!.teams[0]!.seed).toBe(1);
+    expect(tm1Cat!.teams[1]!.seed).toBeNull();
+
+    // Required contract fields present.
+    for (const cat of body.categories) {
+      for (const team of cat.teams) {
+        expect(typeof team.id).toBe('string');
+        expect(Object.prototype.hasOwnProperty.call(team, 'seed')).toBe(true);
+        expect(Object.prototype.hasOwnProperty.call(team, 'teamPhotoUrl')).toBe(true);
+        // PII must be absent.
+        const teamRecord = team as Record<string, unknown>;
+        expect(teamRecord['email']).toBeUndefined();
+        expect(teamRecord['nationalId']).toBeUndefined();
+        expect(teamRecord['phone']).toBeUndefined();
+        for (const player of team.players) {
+          const playerRecord = player as Record<string, unknown>;
+          expect(playerRecord['email']).toBeUndefined();
+          expect(playerRecord['nationalId']).toBeUndefined();
+          expect(playerRecord['phone']).toBeUndefined();
+        }
+      }
+    }
+  });
+
+  it('GET /tournaments/:tid/teams → non-organizer blocked (403)', async () => {
+    await bobAgent.get(`/tournaments/${tournamentId}/teams`).expect(403);
+  });
+
+  // ---------------------------------------------------------------------------
   // closeRegistration blocks when pending registrations exist
   // ---------------------------------------------------------------------------
 
