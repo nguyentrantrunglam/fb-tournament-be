@@ -21,6 +21,7 @@ import type { CreateSelfRegistrationDto } from './dto/create-self-registration.d
 import type { CreateOrganizerRegistrationDto } from './dto/create-organizer-registration.dto';
 import type { BulkRegistrationDto } from './dto/bulk-registration.dto';
 import type { RejectRegistrationDto } from './dto/reject-registration.dto';
+import type { EditableStatus } from './dto/update-registration-status.dto';
 import type { SetSeedDto } from './dto/set-seed.dto';
 import type { TeamPhotoDto } from './dto/team-photo.dto';
 import {
@@ -31,6 +32,11 @@ import {
 
 /** Statuses that occupy a slot toward maxTeams. */
 const ACTIVE_STATUSES = ['pending', 'approved'] as const;
+
+/** A registration in 'pending' or 'approved' holds a category slot. */
+function occupiesSlot(status: string): boolean {
+  return status === 'pending' || status === 'approved';
+}
 
 type GenderReqCast = 'men_only' | 'women_only' | 'mixed_pair' | 'unrestricted';
 
@@ -266,37 +272,144 @@ export class RegistrationsService {
   // Lifecycle transitions
   // ---------------------------------------------------------------------------
 
-  async approve(rid: string) {
+  /**
+   * Legacy organizer approve — strict pending → approved only. The conditional
+   * update (status: 'pending' filter) is the atomic gate: a non-pending row
+   * matches nothing and yields INVALID_LIFECYCLE_TRANSITION. Free editing of
+   * already-decided registrations goes through setStatus / PATCH :rid/status.
+   */
+  async approve(rid: string, userId: string) {
     const reg = await this.loadRegistration(rid);
-    if (reg.status !== 'pending') {
+    const res = await this.registrationModel.updateOne(
+      { _id: rid, status: 'pending' },
+      { $set: { status: 'approved', approvedByUserId: userId } },
+    );
+    if (res.matchedCount === 0) {
       throw new DomainError(
         'INVALID_LIFECYCLE_TRANSITION',
         `Chỉ có thể duyệt từ trạng thái "pending". Hiện tại: "${reg.status}".`,
       );
     }
-    // approve: pending → approved. Slot remains occupied — no counter change.
-    await this.registrationModel.updateOne(
-      { _id: rid },
-      { $set: { status: 'approved' } },
-    );
+    // pending → approved: slot remains occupied — no counter change.
     this.emitUpdated(reg.tournamentId, reg.categoryId, rid);
     return { ok: true };
   }
 
+  /** Legacy organizer reject — strict pending → rejected only (atomic gate). */
   async reject(rid: string, dto: RejectRegistrationDto) {
     const reg = await this.loadRegistration(rid);
-    if (reg.status !== 'pending') {
+    const res = await this.registrationModel.updateOne(
+      { _id: rid, status: 'pending' },
+      { $set: { status: 'rejected', rejectedReason: dto.reason ?? null } },
+    );
+    if (res.matchedCount === 0) {
       throw new DomainError(
         'INVALID_LIFECYCLE_TRANSITION',
         `Chỉ có thể từ chối từ trạng thái "pending". Hiện tại: "${reg.status}".`,
       );
     }
-    await this.registrationModel.updateOne(
-      { _id: rid },
-      { $set: { status: 'rejected', rejectedReason: dto.reason ?? null } },
-    );
     // rejected frees the slot that was held while status was pending.
     await this.releaseSlot(reg.categoryId);
+    this.emitUpdated(reg.tournamentId, reg.categoryId, rid);
+    return { ok: true };
+  }
+
+  /**
+   * Free-edit transition for organizers: pending ↔ approved ↔ rejected.
+   * Every flip is an atomic conditional update on the OLD status, so the slot
+   * side effect (reserve/release) is applied at most once per real transition
+   * even under concurrent requests. 'withdrawn' is excluded as both source
+   * (blocked) and target (rejected by the DTO) to keep withdraw ownership intact.
+   */
+  async setStatus(
+    rid: string,
+    target: EditableStatus,
+    userId: string,
+    reason?: string,
+  ) {
+    const reg = await this.loadRegistration(rid);
+    const old = reg.status;
+
+    if (old === 'withdrawn') {
+      throw new DomainError(
+        'INVALID_LIFECYCLE_TRANSITION',
+        'Không thể chỉnh trạng thái đội đã rút.',
+      );
+    }
+
+    // Idempotent no-op — never touches the slot counter. Refresh the rejected
+    // reason if re-rejecting with a new one.
+    if (old === target) {
+      if (target === 'rejected' && reason !== undefined) {
+        await this.registrationModel.updateOne(
+          { _id: rid },
+          { $set: { rejectedReason: reason } },
+        );
+        this.emitUpdated(reg.tournamentId, reg.categoryId, rid);
+      }
+      return { ok: true };
+    }
+
+    const occOld = occupiesSlot(old);
+    const occNew = occupiesSlot(target);
+
+    const set: Record<string, unknown> = { status: target };
+    if (target === 'approved') set.approvedByUserId = userId;
+    // Keep any prior rejectedReason for audit when leaving 'rejected' — only
+    // overwrite when entering 'rejected'.
+    if (target === 'rejected') set.rejectedReason = reason ?? null;
+
+    if (!occOld && occNew) {
+      // Reactivate (rejected → pending/approved): claim a slot first. Capacity-only
+      // reserve so an organizer can fix a roster even after registration is closed.
+      await this.assertNoDuplicate(reg.categoryId, reg.primaryUserId);
+      const reserved = await this.reserveSlotForReactivate(reg.categoryId);
+      if (!reserved) {
+        throw new DomainError('CATEGORY_FULL', 'Hạng mục đã đủ số đội.');
+      }
+      const res = await this.registrationModel.updateOne(
+        { _id: rid, status: old },
+        { $set: set },
+      );
+      if (res.matchedCount === 0) {
+        // Lost a concurrent race — compensate the slot we just reserved.
+        await this.releaseSlot(reg.categoryId);
+        throw new DomainError(
+          'CONFLICT',
+          'Trạng thái vừa thay đổi, vui lòng tải lại.',
+          409,
+        );
+      }
+    } else if (occOld && !occNew) {
+      // Release (pending/approved → rejected). Flip atomically first so only the
+      // winning caller releases exactly one slot.
+      const res = await this.registrationModel.updateOne(
+        { _id: rid, status: old },
+        { $set: set },
+      );
+      if (res.matchedCount === 0) {
+        throw new DomainError(
+          'CONFLICT',
+          'Trạng thái vừa thay đổi, vui lòng tải lại.',
+          409,
+        );
+      }
+      await this.releaseSlot(reg.categoryId);
+    } else {
+      // pending ↔ approved: both occupy a slot, no counter change.
+      const res = await this.registrationModel.updateOne(
+        { _id: rid, status: old },
+        { $set: set },
+      );
+      if (res.matchedCount === 0) {
+        throw new DomainError(
+          'CONFLICT',
+          'Trạng thái vừa thay đổi, vui lòng tải lại.',
+          409,
+        );
+      }
+    }
+
     this.emitUpdated(reg.tournamentId, reg.categoryId, rid);
     return { ok: true };
   }
@@ -334,10 +447,18 @@ export class RegistrationsService {
       }
     }
 
-    await this.registrationModel.updateOne(
-      { _id: rid },
+    // Atomic conditional flip: only a slot-occupying row transitions to withdrawn,
+    // so a concurrent setStatus on the same registration cannot double-release.
+    const res = await this.registrationModel.updateOne(
+      { _id: rid, status: { $in: ['pending', 'approved'] } },
       { $set: { status: 'withdrawn', withdrawnAt: new Date() } },
     );
+    if (res.matchedCount === 0) {
+      throw new DomainError(
+        'INVALID_LIFECYCLE_TRANSITION',
+        `Không thể rút đăng ký ở trạng thái "${reg.status}".`,
+      );
+    }
     // withdrawn frees the slot that was held while status was pending or approved.
     await this.releaseSlot(reg.categoryId);
     this.emitUpdated(reg.tournamentId, reg.categoryId, rid);
@@ -643,6 +764,24 @@ export class RegistrationsService {
       {
         _id: cid,
         registrationStatus: 'open',
+        $expr: { $lt: ['$slotsUsed', '$maxTeams'] },
+      },
+      { $inc: { slotsUsed: 1 } },
+      { returnDocument: 'after' },
+    );
+    return result !== null;
+  }
+
+  /**
+   * Atomically claim a slot for reactivating a rejected registration.
+   * Unlike reserveSlot, this does NOT require registrationStatus 'open' — an
+   * organizer may clean up the roster (un-reject a team) after registration
+   * has closed. Capacity (slotsUsed < maxTeams) is still enforced atomically.
+   */
+  private async reserveSlotForReactivate(cid: string): Promise<boolean> {
+    const result = await this.categoryModel.findOneAndUpdate(
+      {
+        _id: cid,
         $expr: { $lt: ['$slotsUsed', '$maxTeams'] },
       },
       { $inc: { slotsUsed: 1 } },

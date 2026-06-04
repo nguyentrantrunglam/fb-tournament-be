@@ -594,6 +594,217 @@ describe('Registrations (e2e)', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // PATCH /registrations/:rid/status — organizer free edit (pending↔approved↔rejected)
+  // Fresh categories + organizer-created registrations to avoid coupling with the
+  // shared bobRegistrationId lifecycle sequence above.
+  // ---------------------------------------------------------------------------
+
+  // Helper: create an open men_only singles category, return its id.
+  async function createOpenSingles(code: string, maxTeams: number) {
+    const res = await aliceAgent
+      .post(`/tournaments/${tournamentId}/categories`)
+      .send({
+        code,
+        name: `Singles ${code}`,
+        playerCount: 1,
+        genderRequirement: 'men_only',
+        bestOf: 3,
+        fee: 0,
+        maxTeams,
+        registrationDeadline: '2026-08-01T00:00:00.000Z',
+      })
+      .expect(201);
+    const cid = res.body.id as string;
+    await aliceAgent.post(`/categories/${cid}/registration/open`).expect(200);
+    return cid;
+  }
+
+  // Helper: organizer-create an auto-approved registration, return its id.
+  async function organizerApprove(cid: string, primaryUserId: string) {
+    const res = await aliceAgent
+      .post(`/categories/${cid}/registrations/organizer`)
+      .send({ primaryUserId })
+      .expect(201);
+    return res.body.id as string;
+  }
+
+  const slotsOf = async (cid: string) =>
+    (await categoryModel.findById(cid).lean().exec())?.slotsUsed;
+
+  it('PATCH /status: free transitions pending↔approved↔rejected keep slot accounting correct', async () => {
+    const cid = await createOpenSingles('ST1', 2);
+    const rid = await organizerApprove(cid, frankId); // approved, slotsUsed=1
+    expect(await slotsOf(cid)).toBe(1);
+
+    // approved → pending: both occupy a slot, no change.
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'pending' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(1);
+    expect((await registrationModel.findById(rid).lean().exec())?.status).toBe(
+      'pending',
+    );
+
+    // pending → approved: sets approvedByUserId, slot unchanged.
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'approved' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(1);
+
+    // approved → rejected: releases slot, stores reason.
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'rejected', reason: 'Sai hạng mục' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(0);
+    let doc = await registrationModel.findById(rid).lean().exec();
+    expect(doc?.status).toBe('rejected');
+    expect(doc?.rejectedReason).toBe('Sai hạng mục');
+    expect(doc?.approvedByUserId).toBeDefined(); // audit kept
+
+    // rejected → approved (reactivate): re-reserves slot, keeps rejectedReason for audit.
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'approved' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(1);
+    doc = await registrationModel.findById(rid).lean().exec();
+    expect(doc?.status).toBe('approved');
+    expect(doc?.approvedByUserId).toBeDefined();
+    expect(doc?.rejectedReason).toBe('Sai hạng mục'); // not cleared
+
+    // same → same: idempotent no-op, slot unchanged.
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'approved' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(1);
+
+    // slotsUsed invariant: equals count of slot-occupying registrations.
+    const activeCount = await registrationModel
+      .countDocuments({ categoryId: cid, status: { $in: ['pending', 'approved'] } })
+      .exec();
+    expect(await slotsOf(cid)).toBe(activeCount);
+  });
+
+  it('PATCH /status: reactivate blocked when category full → 400 CATEGORY_FULL', async () => {
+    const cid = await createOpenSingles('SF1', 2); // maxTeams min is 2
+    const rid = await organizerApprove(cid, charlieId); // slotsUsed=1
+    await organizerApprove(cid, bobId); // slotsUsed=2 (full)
+
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'rejected' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(1);
+
+    await organizerApprove(cid, frankId); // slotsUsed=2 (full again)
+
+    const res = await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'approved' })
+      .expect(400);
+    expect(res.body.code).toBe('CATEGORY_FULL');
+    expect(await slotsOf(cid)).toBe(2); // unchanged after failed reserve
+  });
+
+  it('PATCH /status: reactivate allowed after registration closed (capacity-only)', async () => {
+    const cid = await createOpenSingles('SC1', 2);
+    const rid = await organizerApprove(cid, frankId);
+
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'rejected' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(0);
+
+    await aliceAgent.post(`/categories/${cid}/registration/close`).expect(200);
+
+    // Closed but capacity free → reactivate must still succeed.
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'approved' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(1);
+  });
+
+  it('PATCH /status: target "withdrawn" rejected by validation → 400', async () => {
+    const cid = await createOpenSingles('SW1', 2);
+    const rid = await organizerApprove(cid, frankId);
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'withdrawn' })
+      .expect(400);
+  });
+
+  it('PATCH /status: editing an already-withdrawn registration → 400 INVALID_LIFECYCLE_TRANSITION', async () => {
+    // bobRegistrationId was withdrawn earlier in the suite.
+    const res = await aliceAgent
+      .patch(`/registrations/${bobRegistrationId}/status`)
+      .send({ status: 'approved' })
+      .expect(400);
+    expect(res.body.code).toBe('INVALID_LIFECYCLE_TRANSITION');
+  });
+
+  it('PATCH /status: concurrent reject releases the slot exactly once (atomicity)', async () => {
+    const cid = await createOpenSingles('CC1', 2);
+    const rid = await organizerApprove(cid, frankId); // approved, slotsUsed=1
+
+    const [r1, r2] = await Promise.all([
+      aliceAgent.patch(`/registrations/${rid}/status`).send({ status: 'rejected' }),
+      aliceAgent.patch(`/registrations/${rid}/status`).send({ status: 'rejected' }),
+    ]);
+
+    const statuses = [r1.status, r2.status];
+    // One wins the atomic flip (200). The other either lost the race (409 CONFLICT)
+    // or read the already-rejected state (200 idempotent no-op). Both are correct.
+    expect(statuses).toContain(200);
+    statuses.forEach((s) => expect([200, 409]).toContain(s));
+
+    // The invariant that matters: the slot is released exactly once, never twice.
+    expect(await slotsOf(cid)).toBe(0);
+    expect((await registrationModel.findById(rid).lean().exec())?.status).toBe(
+      'rejected',
+    );
+  });
+
+  it('PATCH /status: concurrent reactivate of the same row reserves the slot exactly once', async () => {
+    const cid = await createOpenSingles('CR1', 2);
+    const rid = await organizerApprove(cid, frankId); // approved, slotsUsed=1
+    await aliceAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'rejected' })
+      .expect(200);
+    expect(await slotsOf(cid)).toBe(0);
+
+    const [r1, r2] = await Promise.all([
+      aliceAgent.patch(`/registrations/${rid}/status`).send({ status: 'approved' }),
+      aliceAgent.patch(`/registrations/${rid}/status`).send({ status: 'approved' }),
+    ]);
+
+    // One wins the flip (200). The loser either lost the race (409, slot compensated
+    // back) or read the already-approved state (200 no-op). Both leave slotsUsed=1.
+    const statuses = [r1.status, r2.status];
+    expect(statuses).toContain(200);
+    statuses.forEach((s) => expect([200, 409]).toContain(s));
+    expect(await slotsOf(cid)).toBe(1); // reserved exactly once after compensation
+    expect((await registrationModel.findById(rid).lean().exec())?.status).toBe(
+      'approved',
+    );
+  });
+
+  it('Bob (non-organizer) cannot PATCH status → 403', async () => {
+    const cid = await createOpenSingles('SB1', 2);
+    const rid = await organizerApprove(cid, frankId);
+    await bobAgent
+      .patch(`/registrations/${rid}/status`)
+      .send({ status: 'pending' })
+      .expect(403);
+  });
+
+  // ---------------------------------------------------------------------------
   // Authz: non-organizer blocked
   // ---------------------------------------------------------------------------
 

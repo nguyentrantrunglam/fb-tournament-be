@@ -21,6 +21,7 @@ import { CreateSelfRegistrationDto } from './dto/create-self-registration.dto';
 import { CreateOrganizerRegistrationDto } from './dto/create-organizer-registration.dto';
 import { BulkRegistrationDto } from './dto/bulk-registration.dto';
 import { RejectRegistrationDto } from './dto/reject-registration.dto';
+import { UpdateRegistrationStatusDto } from './dto/update-registration-status.dto';
 import { SetSeedDto } from './dto/set-seed.dto';
 import { TeamPhotoDto } from './dto/team-photo.dto';
 
@@ -126,8 +127,8 @@ export class RegistrationsController {
   @HttpCode(HttpStatus.OK)
   @TournamentRoles('organizer')
   @UseGuards(RegistrationTournamentRoleGuard)
-  approve(@Param('rid') rid: string) {
-    return this.registrationsService.approve(rid);
+  approve(@Param('rid') rid: string, @CurrentUser() user: SessionUser) {
+    return this.registrationsService.approve(rid, user.id);
   }
 
   @Post('registrations/:rid/reject')
@@ -136,6 +137,28 @@ export class RegistrationsController {
   @UseGuards(RegistrationTournamentRoleGuard)
   reject(@Param('rid') rid: string, @Body() dto: RejectRegistrationDto) {
     return this.registrationsService.reject(rid, dto);
+  }
+
+  /**
+   * Free-edit registration status (pending/approved/rejected). Organizer-only;
+   * the guard reads req.params['rid'] (literal name required) and rejects
+   * organizers of other tournaments. Withdraw stays on its own ownership-aware route.
+   */
+  @Patch('registrations/:rid/status')
+  @HttpCode(HttpStatus.OK)
+  @TournamentRoles('organizer')
+  @UseGuards(RegistrationTournamentRoleGuard)
+  setStatus(
+    @Param('rid') rid: string,
+    @Body() dto: UpdateRegistrationStatusDto,
+    @CurrentUser() user: SessionUser,
+  ) {
+    return this.registrationsService.setStatus(
+      rid,
+      dto.status,
+      user.id,
+      dto.reason,
+    );
   }
 
   /**
