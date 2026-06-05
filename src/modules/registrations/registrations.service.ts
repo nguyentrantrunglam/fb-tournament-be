@@ -607,7 +607,7 @@ export class RegistrationsService {
     const [users, categories] = await Promise.all([
       this.userModel
         .find({ _id: { $in: [...userIds] } })
-        .select('displayName identity gender')
+        .select('displayName identity gender dob avatarUrl')
         .lean()
         .exec(),
       this.categoryModel
@@ -678,7 +678,7 @@ export class RegistrationsService {
     const [users, categories] = await Promise.all([
       this.userModel
         .find({ _id: { $in: [...userIds] } })
-        .select('displayName')
+        .select('displayName identity gender dob')
         .lean()
         .exec(),
       this.categoryModel
@@ -713,6 +713,46 @@ export class RegistrationsService {
 
     const filter: Record<string, unknown> = {
       displayName: { $regex: regex },
+    };
+
+    if (gender === 'male' || gender === 'female') {
+      filter['gender'] = gender;
+    }
+
+    const users = await this.userModel
+      .find(filter)
+      .select('displayName gender avatarUrl')
+      .limit(15)
+      .lean()
+      .exec();
+
+    return {
+      users: users.map((u) => ({
+        id: u._id.toHexString(),
+        displayName: u.displayName,
+        gender: u.gender,
+        avatarUrl: u.avatarUrl ?? null,
+      })),
+    };
+  }
+
+  /**
+   * Organizer-only user search — matches displayName OR email prefix.
+   * Email is not returned in the response to prevent PII leakage.
+   * Endpoint is guarded by @TournamentRoles('organizer').
+   */
+  async searchUsersForOrganizer(_tid: string, q: string, gender?: string) {
+    const trimmed = q.trim();
+    if (trimmed.length < 2) return { users: [] };
+
+    const safe = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(safe, 'i');
+
+    const filter: Record<string, unknown> = {
+      $or: [
+        { displayName: { $regex: regex } },
+        { email: { $regex: `^${safe}`, $options: 'i' } },
+      ],
     };
 
     if (gender === 'male' || gender === 'female') {

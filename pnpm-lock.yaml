@@ -59,6 +59,9 @@ importers:
       helmet:
         specifier: ^8.2.0
         version: 8.2.0
+      mongodb:
+        specifier: ~7.2
+        version: 7.2.0
       mongoose:
         specifier: ^9.6.3
         version: 9.6.3

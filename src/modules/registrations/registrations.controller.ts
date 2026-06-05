@@ -57,6 +57,21 @@ export class RegistrationsController {
   }
 
   /**
+   * Organizer-only user search — matches displayName or email prefix.
+   * Requires organizer role; email is not returned in the response.
+   */
+  @Get('tournaments/:tid/organizer/user-search')
+  @TournamentRoles('organizer')
+  @UseGuards(TournamentRoleGuard)
+  searchUsersForOrganizer(
+    @Param('tid') tid: string,
+    @Query('q') q: string = '',
+    @Query('gender') gender?: string,
+  ) {
+    return this.registrationsService.searchUsersForOrganizer(tid, q, gender);
+  }
+
+  /**
    * Search users for partner picker (authenticated — no organizer role required).
    * Athletes use this to find partners before submitting a doubles registration.
    */

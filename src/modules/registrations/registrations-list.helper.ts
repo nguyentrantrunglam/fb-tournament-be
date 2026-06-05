@@ -92,6 +92,8 @@ type LeanUser = {
   _id: { toHexString(): string };
   displayName: string;
   gender?: string;
+  dob?: Date;
+  avatarUrl?: string;
   identity?: { nationalId?: string; phone?: string };
 };
 
@@ -111,6 +113,9 @@ type LeanCategoryFull = {
 type LeanDisplayUser = {
   _id: { toHexString(): string };
   displayName: string;
+  gender?: string;
+  dob?: Date;
+  identity?: { nationalId?: string; phone?: string };
 };
 
 type LeanRegApproved = {
@@ -158,13 +163,27 @@ export function buildTeamsByCategoryResponse(
 
     const teams = sorted.map((r) => {
       const primary = userMap.get(r.primaryUserId);
-      const players: { name: string }[] = [
-        { name: primary?.displayName ?? '' },
-      ];
-      if (r.partnerUserId) {
-        const partner = userMap.get(r.partnerUserId);
-        players.push({ name: partner?.displayName ?? '' });
+
+      function playerShape(u: LeanDisplayUser | undefined) {
+        const initials = (() => {
+          const parts = (u?.displayName ?? '').trim().split(/\s+/);
+          return ((parts[0]?.[0] ?? '') + (parts[parts.length - 1]?.[0] ?? '')).toUpperCase();
+        })();
+        return {
+          name: u?.displayName ?? '',
+          initials,
+          gender: (u?.gender ?? null) as 'male' | 'female' | null,
+          dob: u?.dob ? new Date(u.dob).toISOString() : null,
+          cccd: u?.identity?.nationalId ?? null,
+          phone: u?.identity?.phone ?? null,
+        };
       }
+
+      const players = [playerShape(primary)];
+      if (r.partnerUserId) {
+        players.push(playerShape(userMap.get(r.partnerUserId)));
+      }
+
       return {
         id: r._id.toHexString(),
         seed: r.seed ?? null,
@@ -196,10 +215,21 @@ export function buildRegistrationListItem(
 ) {
   return {
     id: reg._id.toHexString(),
+    // Primary athlete
     athleteName: primaryUser?.displayName ?? '',
-    cccdLast4: cccdLast4(primaryUser?.identity?.nationalId),
-    phoneMasked: maskPhone(primaryUser?.identity?.phone),
+    athleteAvatarUrl: primaryUser?.avatarUrl ?? null,
+    athleteGender: (primaryUser?.gender ?? null) as 'male' | 'female' | null,
+    athleteDob: primaryUser?.dob ? new Date(primaryUser.dob).toISOString() : null,
+    athleteCccd: primaryUser?.identity?.nationalId ?? null,
+    athletePhone: primaryUser?.identity?.phone ?? null,
+    // Partner (doubles only)
     partnerName: partnerUser?.displayName ?? null,
+    partnerAvatarUrl: partnerUser?.avatarUrl ?? null,
+    partnerGender: (partnerUser?.gender ?? null) as 'male' | 'female' | null,
+    partnerDob: partnerUser?.dob ? new Date(partnerUser.dob).toISOString() : null,
+    partnerCccd: partnerUser?.identity?.nationalId ?? null,
+    partnerPhone: partnerUser?.identity?.phone ?? null,
+    // Registration
     categoryId: reg.categoryId,
     categoryCode: category?.code ?? '',
     fee: reg.feeSnapshot,
